@@ -20,17 +20,12 @@ import {
   Sparkles
 } from 'lucide-react';
 
-// --- Configuração Supabase ---
-// NOTA PARA O TEU AMBIENTE LOCAL (VITE):
-// Quando copiares este código para a tua máquina, DESCOMENTA as 4 linhas abaixo 
-// e apaga a linha "export const supabase = null;" para o Supabase funcionar a sério.
+import { createClient } from '@supabase/supabase-js';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+export const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
-// import { createClient } from '@supabase/supabase-js';
-// const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-// const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-// export const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
-
-export const supabase = null; // Mock para a pré-visualização não dar erro aqui no painel.
+// export const supabase = null;
 
 // --- Fontes Externas e Estilos Globais ---
 const globalStyles = `
@@ -151,19 +146,17 @@ function LoginScreen({ onLogin }) {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [errorMsg, setErrorMsg] = useState(null);
+  const [errorMsg, setErrorMsg] = useState(null); // Estado para guardar a mensagem de erro
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    setErrorMsg(null);
+    setErrorMsg(null); // Limpa erros anteriores
 
-    // Se estiver sem chaves (Local/Canvas), entra direto para testes.
+    // Verifica se o Supabase está configurado
     if (!supabase) {
-      setTimeout(() => {
-        setIsLoading(false);
-        onLogin();
-      }, 1000);
+      setErrorMsg("Erro de configuração: Faltam as chaves do Supabase no .env.local");
+      setIsLoading(false);
       return;
     }
 
@@ -176,14 +169,17 @@ function LoginScreen({ onLogin }) {
     setIsLoading(false);
 
     if (error) {
+      // Se as credenciais estiverem erradas, bloqueia e avisa
       setErrorMsg("E-mail ou senha incorretos.");
     } else {
+      // Se estiver tudo certo, entra na plataforma!
       onLogin();
     }
   };
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col justify-center items-center relative overflow-hidden font-body">
+      {/* Grafismos de Fundo */}
       <div className="absolute top-[-150px] left-[-150px] w-[500px] h-[500px] bg-[#1331a1] rounded-full blur-[120px] opacity-20 pointer-events-none"></div>
       <div className="absolute bottom-[-150px] right-[-150px] w-[500px] h-[500px] bg-[#F31366] rounded-full blur-[120px] opacity-10 pointer-events-none"></div>
 
@@ -197,6 +193,7 @@ function LoginScreen({ onLogin }) {
           Bem-vindo à plataforma de gestão. Insira as suas credenciais para iniciar a jornada.
         </p>
 
+        {/* Alerta de Erro Visual */}
         {errorMsg && (
           <div className="bg-red-50 text-red-600 border border-red-200 p-3 rounded-xl text-sm font-bold mb-6 text-center">
             {errorMsg}
