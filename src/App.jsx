@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
@@ -104,31 +105,6 @@ const formatDurationDisplay = (decimalHours) => {
   return `${h}h ${m.toString().padStart(2, '0')}m`;
 };
 
-// Mock Data Generator (Simulador de Dados)
-const generateMockData = () => {
-  const data = [];
-  const today = new Date();
-  for (let i = 0; i < 45; i++) {
-    const trainer = TRAINERS[Math.floor(Math.random() * TRAINERS.length)];
-    const date = new Date(today);
-    date.setDate(date.getDate() - Math.floor(Math.random() * 60)); 
-    const type = Math.random() > 0.4 ? 'Web' : 'Presencial';
-    
-    data.push({
-      id: `mock-${i}`,
-      date: date.toISOString().split('T')[0],
-      duration: Math.floor(Math.random() * 3) + 1 + (Math.random() > 0.5 ? 0.5 : 0), 
-      trainer: trainer.name,
-      occupation: trainer.occupation,
-      school: SCHOOLS[Math.floor(Math.random() * SCHOOLS.length)],
-      type: type,
-      link: type === 'Web' ? 'https://meet.google.com/abc-defg-hij' : '',
-      ata: 'Os alunos demonstraram superação e amadurecimento nas técnicas apresentadas. O encontro cumpriu a missão da jornada do herói.',
-      createdAt: new Date().toISOString()
-    });
-  }
-  return data;
-};
 
 // --- Componente: Símbolo da Marca Senac ---
 const BrandLogo = () => (
@@ -184,11 +160,14 @@ function LoginScreen({ onLogin }) {
       <div className="absolute bottom-[-150px] right-[-150px] w-[500px] h-[500px] bg-[#F31366] rounded-full blur-[120px] opacity-10 pointer-events-none"></div>
 
       <div className="bg-white p-8 sm:p-12 rounded-3xl shadow-2xl border-t-[8px] border-[#F8b62F] max-w-md w-full relative z-10 mx-4">
-        <div className="flex justify-center mb-6">
-          <BrandLogo />
+      <div className="flex justify-center mb-6">
+          <img 
+            src="/logo.png" 
+            alt="Logo Competições Senac" 
+            className="h-24 w-auto object-contain" 
+          />
         </div>
         
-        <h1 className="text-3xl font-brand text-[#1331a1] text-center mb-2">COMPETIÇÕES SENAC</h1>
         <p className="text-slate-500 text-center mb-8 font-medium leading-relaxed">
           Bem-vindo à plataforma de gestão. Insira as suas credenciais para iniciar a jornada.
         </p>
@@ -238,9 +217,6 @@ function LoginScreen({ onLogin }) {
           </button>
         </form>
 
-        <p className="text-xs text-center text-slate-400 mt-8 font-medium">
-          Acesso restrito à equipa de Treinadores. Em caso de dúvidas, contacte a gestão.
-        </p>
       </div>
     </div>
   );
@@ -253,22 +229,56 @@ export default function App() {
   const [currentView, setCurrentView] = useState('form');
   const [records, setRecords] = useState([]);
   const [notification, setNotification] = useState(null);
+  const [isLoadingData, setIsLoadingData] = useState(false); // Novo estado para o loading
 
+  // Função REAL para buscar dados do Supabase (Leitura)
+  const fetchRecords = async () => {
+    setIsLoadingData(true);
+    const { data, error } = await supabase
+      .from('registros')
+      .select('*')
+      .order('date', { ascending: false }); // Traz os mais recentes primeiro
+      
+    if (error) {
+      console.error("Erro ao buscar dados:", error);
+    } else if (data) {
+      setRecords(data);
+    }
+    setIsLoadingData(false);
+  };
+
+  // Quando o utilizador faz login, o sistema vai buscar as ATAs reais!
   useEffect(() => {
-    // NOTA PARA PRODUÇÃO: Buscar dados reais: supabase.from('registros').select('*')
-    setRecords(generateMockData());
-  }, []);
+    if (isAuthenticated && supabase) {
+      fetchRecords();
+    }
+  }, [isAuthenticated]);
 
   const showNotification = (msg) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3000);
   };
 
+  // Função REAL para gravar no Supabase (Inserção)
   const handleAddRecord = async (newRecord) => {
-    // NOTA PARA PRODUÇÃO: Inserir no DB real: await supabase.from('registros').insert([newRecord])
-    setRecords([{ ...newRecord, id: Date.now().toString(), createdAt: new Date().toISOString() }, ...records]);
-    showNotification('A jornada foi registada com sucesso!');
-    setCurrentView('history');
+    // Insere no banco de dados
+    const { data, error } = await supabase
+      .from('registros')
+      .insert([newRecord])
+      .select(); // Pede ao banco para devolver a linha acabada de criar
+
+    if (error) {
+      console.error("Erro ao gravar jornada:", error);
+      alert("Houve um erro ao guardar. Verifica o teu acesso à internet.");
+      return;
+    }
+
+    if (data && data.length > 0) {
+      // Adiciona o novo registo (com o ID real do banco) ao topo da lista local
+      setRecords([data[0], ...records]);
+      showNotification('A jornada foi registada com sucesso no servidor!');
+      setCurrentView('history');
+    }
   };
 
   const handleLogout = async () => {
@@ -301,13 +311,15 @@ export default function App() {
           <div className="p-6 relative z-10 flex flex-col sm:flex-row lg:flex-col items-start sm:items-center lg:items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <BrandLogo />
+              <img 
+            src="/logo.png" 
+            alt="Logo Competições Senac" 
+            className="h-24 w-auto object-contain" 
+          />
                 <div>
-                  <h1 className="text-2xl font-brand leading-none tracking-normal">COMPETIÇÕES</h1>
-                  <h1 className="text-2xl font-brand font-bold leading-none">SENAC</h1>
+                  
                 </div>
               </div>
-              <p className="text-xs text-blue-200 mt-2 font-medium">EDUCAÇÃO QUE TRANSFORMA</p>
             </div>
             
             <button 
@@ -319,7 +331,7 @@ export default function App() {
           </div>
           
           <nav className="w-full px-4 pb-4 lg:py-4 flex flex-row lg:flex-col gap-2 overflow-x-auto hide-scrollbar relative z-10">
-            <NavItem icon={<FilePlus size={20}/>} label="Nova Jornada" active={currentView === 'form'} onClick={() => setCurrentView('form')} />
+            <NavItem icon={<FilePlus size={20}/>} label="Novo Registro" active={currentView === 'form'} onClick={() => setCurrentView('form')} />
             <NavItem icon={<History size={20}/>} label="Histórico" active={currentView === 'history'} onClick={() => setCurrentView('history')} />
             <NavItem icon={<LayoutDashboard size={20}/>} label="Dashboard" active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} />
           </nav>
@@ -337,9 +349,19 @@ export default function App() {
           )}
 
           <div className="max-w-7xl mx-auto">
-            {currentView === 'dashboard' && <DashboardView records={records} />}
-            {currentView === 'form' && <FormView onSubmit={handleAddRecord} />}
-            {currentView === 'history' && <HistoryView records={records} />}
+            {/* Aviso de carregamento na tela */}
+            {isLoadingData ? (
+              <div className="flex flex-col items-center justify-center py-20">
+                <div className="w-12 h-12 border-4 border-[#1331a1] border-t-transparent rounded-full animate-spin mb-4"></div>
+                <p className="text-[#1331a1] font-brand text-lg animate-pulse">CARREGANDO DADOS DO SERVIDOR...</p>
+              </div>
+            ) : (
+              <>
+                {currentView === 'dashboard' && <DashboardView records={records} />}
+                {currentView === 'form' && <FormView onSubmit={handleAddRecord} />}
+                {currentView === 'history' && <HistoryView records={records} />}
+              </>
+            )}
           </div>
         </main>
       </div>
@@ -444,7 +466,7 @@ function DashboardView({ records }) {
         <div className="w-full">
           <label className="block text-xs font-bold text-[#1331a1] uppercase tracking-wider mb-2 flex items-center gap-1"><Filter size={14} /> Escola</label>
           <select value={filterSchool} onChange={(e) => setFilterSchool(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#1331a1] bg-slate-50 font-medium">
-            <option value="">Todass</option>
+            <option value="">Todas</option>
             {availableSchools.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
