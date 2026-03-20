@@ -560,47 +560,66 @@ function FormView({ onSubmit }) {
     setIsGeneratingAta(true);
 
     try {
-      // Aqui é a chamada REAL para a tua API Backend na Vercel
-      const response = await fetch('/api/gerar-ata', {
+      // Puxa a chave do arquivo .env (se não achar, usa a string direta como fallback para o seu teste)
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+      const dataFormatada = formData.date ? formData.date.split('-').reverse().join('/') : 'Não informada';
+      const escolaStr = formData.school || 'Não informada';
+      const treinadorStr = formData.trainerName || 'Não informado';
+
+      const systemPrompt = `Você é um assistente especialista em gestão educacional e documentação corporativa de alto nível. 
+      Sua missão é LER, INTERPRETAR, SINTETIZAR e ABSTRAIR o texto de entrada referente a um encontro de alinhamento entre a gestão e o Treinador Escolar.
+
+      ## ESTRUTURA OBRIGATÓRIA DA ATA:
+      Gere a resposta em formato Markdown rigorosamente com esta estrutura:
+
+      # Ata de Alinhamento de Treinamento
+      **Data:** ${dataFormatada}
+      **Escola/Unidade:** ${escolaStr}
+      **Treinador:** ${treinadorStr}
+
+      ## 1. Objetivo do Encontro
+      [Resumo do encontro]
+
+      ## 2. Tópicos Discutidos e Dúvidas Esclarecidas
+      * **[Tema]:** [Síntese]
+
+      ## 3. Recomendações e Ajustes de Treinamento
+      * **[Foco]:** [Orientação]
+
+      ## 4. Próximos Passos
+      * [Ação] - Prazo: [Prazo]`;
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
+        
+      // O App.jsx faz a chamada direto para o Google, contornando o problema do Vite
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          textoBruto: formData.ata,
-          contexto: {
-            treinador: formData.trainerName,
-            escola: formData.school,
-            data: formData.date
-          }
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{
+            role: "user",
+            parts: [{ text: `Analise criticamente a transcrição abaixo e elabore a Ata final:\n\nTRANSCRIÇÃO:\n${formData.ata}` }]
+          }],
+          generationConfig: { temperature: 0.2 }
         })
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setFormData(prev => ({ ...prev, ata: data.ataFormatada }));
-      } else {
-        throw new Error("API da IA não configurada ou indisponível.");
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Falha na API: ${errorText}`);
       }
+
+      const data = await response.json();
+      const ataFormatada = data.candidates[0].content.parts[0].text.trim();
+
+      // Atualiza o estado da tela com a Ata bonitona
+      setFormData(prev => ({ ...prev, ata: ataFormatada }));
       
     } catch (error) {
-      console.warn("Usando formatação simulada pois a API falhou ou ainda não existe.");
-      
-      // Simulação visual (Apagar quando a API Vercel estiver a funcionar)
-      await new Promise(r => setTimeout(r, 1800));
-      const ataFormatada = `📋 **RESUMO DA ASSESSORIA**
-- **Data:** ${formData.date.split('-').reverse().join('/')}
-- **Escola:** ${formData.school || 'Não informada'}
-- **Treinador:** ${formData.trainerName || 'Não informado'}
-
-🎯 **PONTOS PRINCIPAIS:**
-${formData.ata.split('\n').map(linha => linha.trim() ? `- ${linha}` : '').join('\n')}
-
-🚧 **DIFICULDADES SUPERADAS:**
-- (A IA preencherá automaticamente com base no seu texto)
-
-🚀 **PRÓXIMOS PASSOS:**
-- (A IA preencherá automaticamente as metas futuras)`;
-
-      setFormData(prev => ({ ...prev, ata: ataFormatada }));
+      console.error("Deu ruim na geração real:", error);
+      alert("Ocorreu um erro ao gerar a ATA real. Verifique o console.");
     } finally {
       setIsGeneratingAta(false);
     }
