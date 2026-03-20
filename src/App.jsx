@@ -25,7 +25,7 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 export const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
-
+import { Wand2 } from 'lucide-react';
 // export const supabase = null;
 
 // --- Fontes Externas e Estilos Globais ---
@@ -534,7 +534,7 @@ function DashboardView({ records }) {
 function FormView({ onSubmit }) {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
-    duration: '01:00', // Formato inicial do relógio HH:MM
+    duration: '01:00',
     trainerName: '',
     school: '',
     type: 'Presencial',
@@ -542,16 +542,74 @@ function FormView({ onSubmit }) {
     ata: ''
   });
 
+  // Estado para controlar o botão de IA (Loading)
+  const [isGeneratingAta, setIsGeneratingAta] = useState(false);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // --- Função de Integração com a IA (Copilot / Azure OpenAI) ---
+  const handleGenerateATA = async () => {
+    if (!formData.ata || formData.ata.length < 15) {
+      alert("Cole um rascunho, anotações soltas ou a transcrição no campo primeiro para a IA organizar.");
+      return;
+    }
+
+    setIsGeneratingAta(true);
+
+    try {
+      // Aqui é a chamada REAL para a tua API Backend na Vercel
+      const response = await fetch('/api/gerar-ata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          textoBruto: formData.ata,
+          contexto: {
+            treinador: formData.trainerName,
+            escola: formData.school,
+            data: formData.date
+          }
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setFormData(prev => ({ ...prev, ata: data.ataFormatada }));
+      } else {
+        throw new Error("API da IA não configurada ou indisponível.");
+      }
+      
+    } catch (error) {
+      console.warn("Usando formatação simulada pois a API falhou ou ainda não existe.");
+      
+      // Simulação visual (Apagar quando a API Vercel estiver a funcionar)
+      await new Promise(r => setTimeout(r, 1800));
+      const ataFormatada = `📋 **RESUMO DA ASSESSORIA**
+- **Data:** ${formData.date.split('-').reverse().join('/')}
+- **Escola:** ${formData.school || 'Não informada'}
+- **Treinador:** ${formData.trainerName || 'Não informado'}
+
+🎯 **PONTOS PRINCIPAIS:**
+${formData.ata.split('\n').map(linha => linha.trim() ? `- ${linha}` : '').join('\n')}
+
+🚧 **DIFICULDADES SUPERADAS:**
+- (A IA preencherá automaticamente com base no seu texto)
+
+🚀 **PRÓXIMOS PASSOS:**
+- (A IA preencherá automaticamente as metas futuras)`;
+
+      setFormData(prev => ({ ...prev, ata: ataFormatada }));
+    } finally {
+      setIsGeneratingAta(false);
+    }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const trainerObj = TRAINERS.find(t => t.name === formData.trainerName);
     
-    // Converte o tempo do relógio (ex: "01:30") para decimal de banco de dados (1.5)
     const timeParts = formData.duration ? formData.duration.split(':') : ['0', '0'];
     const hours = Number(timeParts[0]) || 0;
     const minutes = Number(timeParts[1]) || 0;
@@ -560,8 +618,8 @@ function FormView({ onSubmit }) {
     onSubmit({
       date: formData.date,
       duration: decimalDuration,
-      trainer: trainerObj.name,
-      occupation: trainerObj.occupation,
+      trainer: trainerObj?.name || '',
+      occupation: trainerObj?.occupation || '',
       school: formData.school,
       type: formData.type,
       link: formData.type === 'Web' ? formData.link : '',
@@ -643,11 +701,39 @@ function FormView({ onSubmit }) {
             </div>
           )}
 
+          {/* ÁREA DA ATA ATUALIZADA COM O BOTÃO DE IA */}
           <div>
-            <label className="block text-sm font-bold text-[#1331a1] mb-2 uppercase flex justify-between items-end">
-              <span>ATA  *</span>
-            </label>
-            <textarea name="ata" required rows="5" placeholder="Descreve os pontos principais abordados, as dificuldades superadas e os próximos passos na jornada..." value={formData.ata} onChange={handleChange} className="w-full px-5 py-4 border-2 border-slate-200 rounded-xl focus:ring-0 focus:border-[#F31366] outline-none bg-slate-50 font-medium text-slate-700 resize-y leading-relaxed" />
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end mb-2 gap-3">
+              <label className="block text-sm font-bold text-[#1331a1] uppercase">
+                ATA / Relato do Encontro *
+              </label>
+              <button 
+                type="button" 
+                onClick={handleGenerateATA}
+                disabled={isGeneratingAta}
+                className="text-xs font-bold text-white bg-gradient-to-r from-[#1331a1] to-[#F31366] hover:opacity-90 py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGeneratingAta ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <Wand2 size={14} />
+                )}
+                {isGeneratingAta ? "ORGANIZANDO COM COPILOT..." : "ORGANIZAR COM COPILOT"}
+              </button>
+            </div>
+            
+            <textarea 
+              name="ata" 
+              required 
+              rows="7" 
+              placeholder="Descreve os pontos principais abordados ou cola aqui a transcrição bruta da reunião..." 
+              value={formData.ata} 
+              onChange={handleChange} 
+              className="w-full px-5 py-4 border-2 border-slate-200 rounded-xl focus:ring-0 focus:border-[#F31366] outline-none bg-slate-50 font-medium text-slate-700 resize-y leading-relaxed" 
+            />
+            <p className="text-xs text-slate-400 mt-2 font-medium">
+              💡 Dica: Cole anotações rápidas e clique no botão acima para formatar usando Inteligência Artificial.
+            </p>
           </div>
 
           <div className="pt-6 flex justify-end border-t border-slate-100">
