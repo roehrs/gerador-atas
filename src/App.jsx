@@ -567,28 +567,39 @@ function FormView({ onSubmit }) {
       const escolaStr = formData.school || 'Não informada';
       const treinadorStr = formData.trainerName || 'Não informado';
 
-      const systemPrompt = `Você é um assistente especialista em gestão educacional e documentação corporativa de alto nível. 
-      Sua missão é LER, INTERPRETAR, SINTETIZAR e ABSTRAIR o texto de entrada referente a um encontro de alinhamento entre a gestão e o Treinador Escolar.
-
-      ## ESTRUTURA OBRIGATÓRIA DA ATA:
-      Gere a resposta em formato Markdown rigorosamente com esta estrutura:
-
-      # Ata de Alinhamento de Treinamento
-      **Data:** ${dataFormatada}
-      **Escola/Unidade:** ${escolaStr}
-      **Treinador:** ${treinadorStr}
-
-      ## 1. Objetivo do Encontro
-      [Resumo do encontro]
-
-      ## 2. Tópicos Discutidos e Dúvidas Esclarecidas
-      * **[Tema]:** [Síntese]
-
-      ## 3. Recomendações e Ajustes de Treinamento
-      * **[Foco]:** [Orientação]
-
-      ## 4. Próximos Passos
-      * [Ação] - Prazo: [Prazo]`;
+      const systemPrompt = `Você é um assistente especialista em gestão educacional e documentação ágil de alto nível. 
+      Sua missão é LER, INTERPRETAR e SINTETIZAR a transcrição bruta de um encontro de alinhamento entre a gestão e o Treinador Escolar.
+      
+      ## REGRAS DE PROCESSAMENTO E ESTILO (MUITO IMPORTANTE):
+      1. Síntese Extrema: Seja cirúrgico. Use frases curtas e diretas.
+      2. Limpeza Absoluta: Ignore falhas técnicas, gagueiras e repetições de palavras.
+      3. Formatação TEXTO PURO: Não use Markdown (asteriscos, hashtags) nem tags HTML. Use apenas CAIXA ALTA para simular negrito em títulos e categorias.
+      
+      ## ESTRUTURA OBRIGATÓRIA DA ATA (Gere APENAS o modelo abaixo preenchido):
+      
+      ATA DE ALINHAMENTO DE TREINAMENTO
+      
+      PARTICIPANTES: [Nomes e Cargos]
+      
+      ---
+      1. OBJETIVO DO ENCONTRO
+      [Apenas uma frase curta resumindo o propósito principal da call]
+      
+      ---
+      2. DIAGNÓSTICO E PONTOS DE ATENÇÃO
+      - [ÁREA/TECNOLOGIA]: [Descrição hiper-resumida do problema]
+      - [ÁREA/TECNOLOGIA]: [Descrição hiper-resumida do problema]
+      
+      ---
+      3. DIRETRIZES E SOLUÇÕES TÉCNICAS
+      - [FOCO DE MELHORIA]: [Orientação técnica/pedagógica]
+      - [FOCO DE MELHORIA]: [Orientação...]
+      
+      ---
+      4. PLANO DE AÇÃO (PRÓXIMOS PASSOS)
+      - AÇÃO: [O que fazer] | RESPONSÁVEL: [Quem] | PRAZO: [Quando]
+      - AÇÃO: [O que fazer] | RESPONSÁVEL: [Quem] | PRAZO: [Quando]
+      `;
 
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
         
@@ -737,7 +748,7 @@ function FormView({ onSubmit }) {
                 ) : (
                   <Wand2 size={14} />
                 )}
-                {isGeneratingAta ? "ORGANIZANDO COM COPILOT..." : "ORGANIZAR COM COPILOT"}
+                {isGeneratingAta ? "ORGANIZANDO COM GEMINI..." : "ORGANIZAR COM GEMINI"}
               </button>
             </div>
             
