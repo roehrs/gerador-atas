@@ -1,0 +1,13 @@
+{
+  "name": "gerador-atas-repo",
+  "private": true,
+  "workspaces": [
+    "gerador-atas"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w gestao-treinadores",
+    "build": "npm run build -w gestao-treinadores",
+    "lint": "npm run lint -w gestao-treinadores",
+    "preview": "npm run preview -w gestao-treinadores"
+  }
+}
