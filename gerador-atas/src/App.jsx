@@ -73,7 +73,7 @@ const CHART_COLORS = [BRAND.blue, BRAND.pink, BRAND.orange, BRAND.yellow, BRAND.
 const TRAINERS = [
   { name: 'Amanda', occupation: 'Estética e Bem Estar' },
   { name: 'Cristina', occupation: 'Recepção de Hotel' },
-  { name: 'Diogo', occupation: 'Desenvolvimento de Sistemas' },
+  { name: 'Diogo', occupation: 'Ocupação TI' },
   { name: 'Elis', occupation: 'Cuidados de Saúde e Apoio Social' },
   { name: 'Georgia', occupation: 'Comportamental' },
   { name: 'Maíra', occupation: 'Confeitaria' },
@@ -88,7 +88,7 @@ const SCHOOLS = [
   'Pelotas','Rio Grande','Santa Cruz','Santa Maria','Santa Rosa',
   'Santana do Livramento','Santo Ângelo','São Borja','São Leopoldo',
   'São Luiz Gonzaga','Saúde','Senac Tech','Taquara','Tramandaí',
-  'Unidade','Unisenac Pelotas','Unisenac POA','Uruguaiana'
+  'Unidade','Unisenac Pelotas','Unisenac POA','Uruguaiana','Web Geral'
 ].sort();
 
 // Mapeamento de Cores por Ocupação (Baseado no Manual)
