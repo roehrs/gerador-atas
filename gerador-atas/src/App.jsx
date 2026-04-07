@@ -557,6 +557,46 @@ function FormView({ onSubmit }) {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const formatComportamentalJsonAsAta = (payload) => {
+    const p = payload || {};
+    const cab = p.cabecalho || {};
+    const atividades = Array.isArray(p.atividades_realizadas)
+      ? p.atividades_realizadas.filter(Boolean).map(String)
+      : [];
+    const objetivo = p.introducao || 'Acompanhamento comportamental para suporte de desempenho na preparação para a competição.';
+    const participantes = [cab.competidor, cab.psicologo_responsavel]
+      .filter(Boolean)
+      .join(' | ') || 'Não informado nos registos';
+    const atividade1 = atividades[0] || p.encaminhamentos_paragrafo_1 || 'Aplicação de técnicas de regulação emocional e foco competitivo.';
+    const atividade2 = atividades[1] || p.orientacoes_manejo_equipe_tecnica || 'Ajuste de rotina de treino mental com monitoramento contínuo.';
+    const prazo = p.data_relatorio || 'Próximo encontro';
+
+    return [
+      'ATA DE ALINHAMENTO DE TREINAMENTO',
+      '',
+      `PARTICIPANTES: ${participantes}`,
+      '',
+      '---',
+      '1. OBJETIVO DO ENCONTRO',
+      objetivo,
+      '',
+      '---',
+      '2. DIAGNÓSTICO E PONTOS DE ATENÇÃO',
+      `- EVOLUÇÃO COMPORTAMENTAL: ${p.parecer_evolucao_comportamental || 'Não informado nos registos'}`,
+      `- PONTOS DE DESENVOLVIMENTO: ${p.pontos_desenvolvimento_emocional || 'Não informado nos registos'}`,
+      '',
+      '---',
+      '3. DIRETRIZES E SOLUÇÕES TÉCNICAS',
+      `- PONTOS FORTES EMOCIONAIS: ${p.pontos_fortes_emocionais || 'Não informado nos registos'}`,
+      `- ORIENTAÇÕES À EQUIPE TÉCNICA: ${p.orientacoes_manejo_equipe_tecnica || 'Não informado nos registos'}`,
+      '',
+      '---',
+      '4. PLANO DE AÇÃO (PRÓXIMOS PASSOS)',
+      `- AÇÃO: ${atividade1} | RESPONSÁVEL: ${cab.psicologo_responsavel || 'Equipe técnica'} | PRAZO: ${prazo}`,
+      `- AÇÃO: ${atividade2} | RESPONSÁVEL: ${cab.treinador_tecnico || 'Treinador técnico'} | PRAZO: ${prazo}`,
+    ].join('\n');
+  };
+
   // --- Função de Integração com a IA (Copilot / Azure OpenAI) ---
   const handleGenerateATA = async () => {
     if (!formData.ata || formData.ata.length < 15) {
@@ -571,6 +611,9 @@ function FormView({ onSubmit }) {
         alert('Configure VITE_GEMINI_API_KEY no ficheiro .env local (pasta gerador-atas).');
         return;
       }
+
+      const trainerObj = TRAINERS.find((t) => t.name === formData.trainerName);
+      const isComportamental = String(trainerObj?.occupation || '').trim().toLowerCase().includes('comportamental');
 
       const systemPrompt = `Você é um assistente especialista em gestão educacional e documentação ágil de alto nível. 
       Sua missão é LER, INTERPRETAR e SINTETIZAR a transcrição bruta de um encontro de alinhamento entre a gestão e o Treinador Escolar.
@@ -606,14 +649,80 @@ function FormView({ onSubmit }) {
       - AÇÃO: [O que fazer] | RESPONSÁVEL: [Quem] | PRAZO: [Quando]
       `;
 
+      const schemaDescrComportamental = `{
+  "cabecalho": {
+    "escola_atendida": "texto",
+    "ocupacao": "texto",
+    "competidor": "texto",
+    "psicologo_responsavel": "texto",
+    "treinador_tecnico": "texto"
+  },
+  "data_relatorio": "DD/MM/AAAA",
+  "introducao": "Um parágrafo contextualizando o momento da preparação (ex: reta final, fase de base, etc).",
+  "atividades_realizadas": [
+    "Dia DD/MM/AAAA - resumo das técnicas aplicadas (ex: treino de respiração, reestruturação cognitiva)",
+    "- detalhe do foco (ex: manejo de ansiedade pré-prova)"
+  ],
+  "habilidades_psicologicas_trabalhadas": [
+    "Lista de competências focadas na sessão (ex: Foco, Resiliência, Comunicação, Gestão do Tempo)"
+  ],
+  "parecer_evolucao_comportamental": "Texto narrativo sobre a evolução do competidor frente à pressão da competição. OMITIR DADOS SENSÍVEIS E ÍNTIMOS.",
+  "pontos_fortes_emocionais": "Texto descrevendo os recursos de enfrentamento positivos do competidor.",
+  "pontos_desenvolvimento_emocional": "Texto descrevendo o que precisa ser melhorado em termos de atitude, foco ou regulação emocional.",
+  "orientacoes_manejo_equipe_tecnica": "Parágrafo com dicas para o treinador técnico (ex: 'O competidor responde melhor a feedbacks objetivos em vez de críticas abertas').",
+  "observacoes_complementares": "Parágrafo curto ou 'Nada a constatar'.",
+  "encaminhamentos_paragrafo_1": "Substitui o primeiro parágrafo orientativo (próximos passos do treinamento mental).",
+  "local_data_assinatura": "ex.: Cidade, 02 de abril de 2026"
+}`;
+
+      const systemPromptComportamental = `Você é um Psicólogo do Esporte e Especialista em Alta Performance atuando no Senac Competições (Etapa Escolar 2026).
+Você recebe um array JSON de REGISTOS DE ENCONTROS COMPORTAMENTAIS; cada registo inclui data, escola, ocupação, psicólogo, tipo (Presencial/Web), duração e o TEXTO COMPLETO DA ATA/TRANSCRIÇÃO.
+
+Sua tarefa: ler as transcrições, analisar a evolução mental do competidor e produzir UM ÚNICO RELATÓRIO DE ACOMPANHAMENTO COMPORTAMENTAL consolidado para a equipe multidisciplinar.
+
+REGRAS CRÍTICAS DE SIGILO E ÉTICA (ATENÇÃO MÁXIMA):
+1. FILTRO DE DADOS SENSÍVEIS: É estritamente proibido incluir no relatório informações sobre traumas de infância, conflitos familiares íntimos, diagnósticos psiquiátricos severos, questões de sexualidade, religião ou problemas financeiros.
+2. TRADUÇÃO CLÍNICA PARA PERFORMANCE: Transforme desabafos pessoais em marcadores de desempenho. 
+   - Exemplo Errado: "O competidor chorou porque brigou com a mãe e está com problemas em casa."
+   - Exemplo Correto: "O competidor apresentou sinais de desgaste emocional e dificuldade de regulação frente a estressores externos; foram trabalhadas técnicas de recentramento."
+3. FOCO NO OBJETIVO: O relatório deve ser focado no impacto do comportamento na execução das tarefas da ocupação e na preparação para a competição.
+
+Regras de Preenchimento:
+- Responda APENAS com um objeto JSON válido (sem Markdown, sem texto antes ou depois).
+- Use português de forma profissional, técnica e empática.
+- Baseie-se apenas nos dados fornecidos; onde faltar informação, use "Não informado nos registos".
+- cabecalho.treinador_tecnico: se mencionado na ata, preencha. Caso contrário, "Não informado".
+- atividades_realizadas: lista cronológica das técnicas psicológicas e dinâmicas utilizadas.
+- orientacoes_manejo_equipe_tecnica: extraia das atas como o treinador técnico pode ajudar este aluno especificamente (como dar feedback, como motivar).
+- data_relatorio e local_data_assinatura: use a data lógica do relatório.
+
+Estrutura EXATA do JSON (chaves obrigatórias):
+${schemaDescrComportamental}`;
+
+      const promptToUse = isComportamental ? systemPromptComportamental : systemPrompt;
+      const comportamentalInput = JSON.stringify([
+        {
+          data: formData.date,
+          escola: formData.school || 'Não informado',
+          ocupacao: trainerObj?.occupation || 'Comportamental',
+          psicologo: trainerObj?.name || 'Não informado',
+          tipo: formData.type,
+          duracao: formData.duration,
+          ata_transcricao: formData.ata,
+        },
+      ], null, 2);
+      const userText = isComportamental
+        ? `Gere o JSON do relatório final a partir dos seguintes registos:\n\n${comportamentalInput}`
+        : `Analise criticamente a transcrição abaixo e elabore a Ata final:\n\nTRANSCRIÇÃO:\n${formData.ata}`;
+
       const response = await geminiGenerateContent({
-        systemInstruction: { parts: [{ text: systemPrompt }] },
+        systemInstruction: { parts: [{ text: promptToUse }] },
         contents: [
           {
             role: 'user',
             parts: [
               {
-                text: `Analise criticamente a transcrição abaixo e elabore a Ata final:\n\nTRANSCRIÇÃO:\n${formData.ata}`,
+                text: userText,
               },
             ],
           },
@@ -627,7 +736,16 @@ function FormView({ onSubmit }) {
       }
 
       const data = await response.json();
-      const ataFormatada = data.candidates[0].content.parts[0].text.trim();
+      const raw = data.candidates[0].content.parts[0].text.trim();
+      let ataFormatada = raw;
+      if (isComportamental) {
+        try {
+          const parsed = parseGeminiJsonResponse(raw);
+          ataFormatada = formatComportamentalJsonAsAta(parsed);
+        } catch {
+          ataFormatada = raw;
+        }
+      }
 
       // Atualiza o estado da tela com a Ata bonitona
       setFormData(prev => ({ ...prev, ata: ataFormatada }));
