@@ -1382,7 +1382,7 @@ ${schemaDescr}`;
                           aria-label={`Incluir relatório: ${record.school}`}
                         />
                       </td>
-                      <td className="py-4 px-6 text-sm font-medium whitespace-nowrap text-slate-500">{new Date(record.date).toLocaleDateString('pt-PT')}</td>
+                      <td className="py-4 px-6 text-sm font-medium whitespace-nowrap text-slate-500">{new Date(String(record.date).slice(0,10) + 'T00:00:00').toLocaleDateString('pt-PT')}</td>
                       <td className="py-4 px-6 text-sm font-bold text-[#1331a1]">{record.school}</td>
                       <td className="py-4 px-6 text-sm font-medium text-slate-800">{record.trainer}</td>
                       <td className="py-4 px-6 text-sm">
@@ -1430,7 +1430,7 @@ ${schemaDescr}`;
           <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden border-t-8 border-[#F8b62F]">
             <div className="p-6 md:p-8 overflow-y-auto space-y-8 bg-slate-50">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-                <div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Data</p><p className="text-base text-[#1331a1] font-bold mt-1">{new Date(selectedRecord.date).toLocaleDateString('pt-PT')}</p></div>
+                <div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Data</p><p className="text-base text-[#1331a1] font-bold mt-1">{new Date(String(selectedRecord.date).slice(0,10) + 'T00:00:00').toLocaleDateString('pt-PT')}</p></div>
                 <div><p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Escola</p><p className="text-base text-[#1331a1] font-bold mt-1">{selectedRecord.school}</p></div>
                 <div>
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Duração</p>
