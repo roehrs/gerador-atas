@@ -87,8 +87,7 @@ const SCHOOLS = [
   'Gravataí','Ijuí','Lindóia','Montenegro','Novo Hamburgo','Passo Fundo',
   'Pelotas','Rio Grande','Santa Cruz','Santa Maria','Santa Rosa',
   'Santana do Livramento','Santo Ângelo','São Borja','São Leopoldo',
-  'São Luiz Gonzaga','Saúde','Senac Tech','Taquara','Tramandaí',
-  'Unidade','Unisenac Pelotas','Unisenac POA','Uruguaiana'
+  'São Luiz Gonzaga','Saúde','Senac Tech','Taquara','Tramandaí','Unisenac Pelotas','Unisenac POA','Uruguaiana', 'Web Geral'
 ].sort();
 
 // Mapeamento de Cores por Ocupação (Baseado no Manual)
