@@ -69,6 +69,24 @@ const BRAND = {
 
 const CHART_COLORS = [BRAND.blue, BRAND.pink, BRAND.orange, BRAND.yellow, BRAND.green, '#8884d8', '#82ca9d', '#ffc658'];
 
+const MAX_TRANSCRIPT_CHARS = 45000;
+
+function extractGeminiTextOrThrow(data) {
+  const text = data?.candidates?.[0]?.content?.parts
+    ?.find((part) => typeof part?.text === 'string')
+    ?.text?.trim();
+
+  if (text) return text;
+
+  const blockReason = data?.promptFeedback?.blockReason;
+  const blockMessage = data?.promptFeedback?.blockReasonMessage;
+  const apiMessage = data?.error?.message;
+  const finishReason = data?.candidates?.[0]?.finishReason;
+  const reason = blockReason || blockMessage || apiMessage || finishReason || 'resposta vazia';
+
+  throw new Error(`Gemini não devolveu texto utilizável (${reason}).`);
+}
+
 // --- Constantes e Dados de Referência ---
 const TRAINERS = [
   { name: 'Amanda', occupation: 'Estética e Bem Estar' },
@@ -603,6 +621,11 @@ function FormView({ onSubmit }) {
       return;
     }
 
+    if (formData.ata.length > MAX_TRANSCRIPT_CHARS) {
+      alert(`Transcrição muito grande (${formData.ata.length} caracteres). Limite atual: ${MAX_TRANSCRIPT_CHARS}. Divida em partes menores para evitar travamentos.`);
+      return;
+    }
+
     setIsGeneratingAta(true);
 
     try {
@@ -735,7 +758,7 @@ ${schemaDescrComportamental}`;
       }
 
       const data = await response.json();
-      const raw = data.candidates[0].content.parts[0].text.trim();
+      const raw = extractGeminiTextOrThrow(data);
       let ataFormatada = raw;
       if (isComportamental) {
         try {
@@ -1238,7 +1261,7 @@ ${schemaDescr}`;
       }
 
       const geminiData = await geminiRes.json();
-      const raw = geminiData.candidates[0].content.parts[0].text.trim();
+      const raw = extractGeminiTextOrThrow(geminiData);
       const parsed = parseGeminiJsonResponse(raw);
       const merged = mergeRelatorioPayload(parsed);
 
