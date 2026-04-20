@@ -614,6 +614,84 @@ function FormView({ onSubmit }) {
     ].join('\n');
   };
 
+  const splitTranscriptIntoChunks = (text, maxChars = 24000) => {
+    const clean = String(text || '');
+    if (clean.length <= maxChars) return [clean];
+
+    const paragraphs = clean.split(/\n{2,}/);
+    const chunks = [];
+    let current = '';
+
+    paragraphs.forEach((paragraph) => {
+      if (!paragraph) return;
+
+      if (paragraph.length > maxChars) {
+        if (current) {
+          chunks.push(current);
+          current = '';
+        }
+        for (let i = 0; i < paragraph.length; i += maxChars) {
+          chunks.push(paragraph.slice(i, i + maxChars));
+        }
+        return;
+      }
+
+      const candidate = current ? `${current}\n\n${paragraph}` : paragraph;
+      if (candidate.length <= maxChars) {
+        current = candidate;
+      } else {
+        if (current) chunks.push(current);
+        current = paragraph;
+      }
+    });
+
+    if (current) chunks.push(current);
+    return chunks.length ? chunks : [clean];
+  };
+
+  const condenseTranscriptIfNeeded = async (rawTranscript) => {
+    const transcript = String(rawTranscript || '').trim();
+    const chunks = splitTranscriptIntoChunks(transcript);
+    if (chunks.length <= 1) return transcript;
+
+    const summaries = [];
+    for (let i = 0; i < chunks.length; i += 1) {
+      const response = await geminiGenerateContent({
+        systemInstruction: {
+          parts: [{
+            text: 'Resuma fielmente a transcrição enviada em tópicos curtos, preservando participantes, decisões, problemas, soluções e próximos passos. Não invente dados e não use markdown.',
+          }],
+        },
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: `PARTE ${i + 1} DE ${chunks.length}:\n${chunks[i]}`,
+              },
+            ],
+          },
+        ],
+        generationConfig: { temperature: 0.1 },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Falha ao resumir transcrição longa (parte ${i + 1}/${chunks.length}): ${errorText}`);
+      }
+
+      const data = await response.json();
+      const summary = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      summaries.push(summary || `Sem conteúdo relevante na parte ${i + 1}.`);
+    }
+
+    return [
+      `TRANSCRIÇÃO MUITO LONGA CONSOLIDADA EM ${chunks.length} PARTES:`,
+      '',
+      ...summaries.map((s, idx) => `PARTE ${idx + 1}:\n${s}`),
+    ].join('\n\n');
+  };
+
   // --- Função de Integração com a IA (Copilot / Azure OpenAI) ---
   const handleGenerateATA = async () => {
     if (!formData.ata || formData.ata.length < 15) {
@@ -633,6 +711,8 @@ function FormView({ onSubmit }) {
         alert('Configure VITE_GEMINI_API_KEY no ficheiro .env local (pasta gerador-atas).');
         return;
       }
+
+      const transcriptForAi = await condenseTranscriptIfNeeded(formData.ata);
 
       const trainerObj = TRAINERS.find((t) => t.name === formData.trainerName);
       const isComportamental = String(trainerObj?.occupation || '').trim().toLowerCase().includes('comportamental');
@@ -730,12 +810,12 @@ ${schemaDescrComportamental}`;
           psicologo: trainerObj?.name || 'Não informado',
           tipo: formData.type,
           duracao: formData.duration,
-          ata_transcricao: formData.ata,
+          ata_transcricao: transcriptForAi,
         },
       ], null, 2);
       const userText = isComportamental
         ? `Gere o JSON do relatório final a partir dos seguintes registos:\n\n${comportamentalInput}`
-        : `Analise criticamente a transcrição abaixo e elabore a Ata final:\n\nTRANSCRIÇÃO:\n${formData.ata}`;
+        : `Analise criticamente a transcrição abaixo e elabore a Ata final:\n\nTRANSCRIÇÃO:\n${transcriptForAi}`;
 
       const response = await geminiGenerateContent({
         systemInstruction: { parts: [{ text: promptToUse }] },
