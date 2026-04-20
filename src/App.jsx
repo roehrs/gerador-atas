@@ -69,8 +69,6 @@ const BRAND = {
 
 const CHART_COLORS = [BRAND.blue, BRAND.pink, BRAND.orange, BRAND.yellow, BRAND.green, '#8884d8', '#82ca9d', '#ffc658'];
 
-const MAX_TRANSCRIPT_CHARS = 45000;
-
 function extractGeminiTextOrThrow(data) {
   const text = data?.candidates?.[0]?.content?.parts
     ?.find((part) => typeof part?.text === 'string')
@@ -696,11 +694,6 @@ function FormView({ onSubmit }) {
   const handleGenerateATA = async () => {
     if (!formData.ata || formData.ata.length < 15) {
       alert("Cole um rascunho, anotações soltas ou a transcrição no campo primeiro para a IA organizar.");
-      return;
-    }
-
-    if (formData.ata.length > MAX_TRANSCRIPT_CHARS) {
-      alert(`Transcrição muito grande (${formData.ata.length} caracteres). Limite atual: ${MAX_TRANSCRIPT_CHARS}. Divida em partes menores para evitar travamentos.`);
       return;
     }
 
