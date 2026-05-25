@@ -561,6 +561,7 @@ function FormView({ onSubmit }) {
     school: '',
     type: 'Presencial',
     link: '',
+    participantType: 'competidor',
     ata: ''
   });
 
@@ -579,7 +580,7 @@ function FormView({ onSubmit }) {
       ? p.atividades_realizadas.filter(Boolean).map(String)
       : [];
     const objetivo = p.introducao || 'Acompanhamento comportamental para suporte de desempenho na preparação para a competição.';
-    const participantes = [cab.competidor, cab.psicologo_responsavel]
+    const participantes = [cab.atendido || cab.competidor, cab.psicologo_responsavel]
       .filter(Boolean)
       .join(' | ') || 'Não informado nos registos';
     const atividade1 = atividades[0] || p.encaminhamentos_paragrafo_1 || 'Aplicação de técnicas de regulação emocional e foco competitivo.';
@@ -748,9 +749,10 @@ function FormView({ onSubmit }) {
   "cabecalho": {
     "escola_atendida": "texto",
     "ocupacao": "texto",
-    "competidor": "texto",
+    "tipo_participante": "competidor | treinador",
+    "atendido": "nome do competidor OU do treinador atendido, conforme tipo_participante",
     "psicologo_responsavel": "texto",
-    "treinador_tecnico": "texto"
+    "treinador_tecnico": "se tipo_participante for 'treinador', use o nome do atendido aqui também; caso contrário, extraia da ata ou 'Não informado'"
   },
   "data_relatorio": "DD/MM/AAAA",
   "introducao": "Um parágrafo contextualizando o momento da preparação (ex: reta final, fase de base, etc).",
@@ -761,34 +763,40 @@ function FormView({ onSubmit }) {
   "habilidades_psicologicas_trabalhadas": [
     "Lista de competências focadas na sessão (ex: Foco, Resiliência, Comunicação, Gestão do Tempo)"
   ],
-  "parecer_evolucao_comportamental": "Texto narrativo sobre a evolução do competidor frente à pressão da competição. OMITIR DADOS SENSÍVEIS E ÍNTIMOS.",
-  "pontos_fortes_emocionais": "Texto descrevendo os recursos de enfrentamento positivos do competidor.",
+  "parecer_evolucao_comportamental": "Texto narrativo sobre a evolução do atendido frente à pressão da competição. OMITIR DADOS SENSÍVEIS E ÍNTIMOS.",
+  "pontos_fortes_emocionais": "Texto descrevendo os recursos de enfrentamento positivos do atendido.",
   "pontos_desenvolvimento_emocional": "Texto descrevendo o que precisa ser melhorado em termos de atitude, foco ou regulação emocional.",
-  "orientacoes_manejo_equipe_tecnica": "Parágrafo com dicas para o treinador técnico (ex: 'O competidor responde melhor a feedbacks objetivos em vez de críticas abertas').",
+  "orientacoes_manejo_equipe_tecnica": "Parágrafo com orientações para a equipe técnica sobre como apoiar este participante.",
   "observacoes_complementares": "Parágrafo curto ou 'Nada a constatar'.",
   "encaminhamentos_paragrafo_1": "Substitui o primeiro parágrafo orientativo (próximos passos do treinamento mental).",
   "local_data_assinatura": "ex.: Cidade, 02 de abril de 2026"
 }`;
 
       const systemPromptComportamental = `Você é um Psicólogo do Esporte e Especialista em Alta Performance atuando no Senac Competições (Etapa Escolar 2026).
-Você recebe um array JSON de REGISTOS DE ENCONTROS COMPORTAMENTAIS; cada registo inclui data, escola, ocupação, psicólogo, tipo (Presencial/Web), duração e o TEXTO COMPLETO DA ATA/TRANSCRIÇÃO.
+Você recebe um array JSON de REGISTOS DE ENCONTROS COMPORTAMENTAIS; cada registo inclui data, escola, ocupação, psicólogo, tipo (Presencial/Web), duração, o campo "tipo_participante" (que indica se o encontro foi com um "competidor" ou com um "treinador") e o TEXTO COMPLETO DA ATA/TRANSCRIÇÃO.
 
-Sua tarefa: ler as transcrições, analisar a evolução mental do competidor e produzir UM ÚNICO RELATÓRIO DE ACOMPANHAMENTO COMPORTAMENTAL consolidado para a equipe multidisciplinar.
+Sua tarefa: ler as transcrições e produzir UM ÚNICO RELATÓRIO DE ACOMPANHAMENTO COMPORTAMENTAL consolidado para a equipe multidisciplinar.
+
+ATENÇÃO — TIPO DE PARTICIPANTE:
+- Se "tipo_participante" for "competidor": o relatório trata da evolução mental e emocional do atleta competidor.
+- Se "tipo_participante" for "treinador": o encontro foi com o treinador técnico (não com o atleta). O relatório deve refletir isso corretamente, abordando o suporte psicológico prestado ao treinador e os encaminhamentos para a equipe.
+- Preencha "cabecalho.tipo_participante" e "cabecalho.atendido" com base nesse campo — nunca assuma que o participante é sempre um competidor.
 
 REGRAS CRÍTICAS DE SIGILO E ÉTICA (ATENÇÃO MÁXIMA):
 1. FILTRO DE DADOS SENSÍVEIS: É estritamente proibido incluir no relatório informações sobre traumas de infância, conflitos familiares íntimos, diagnósticos psiquiátricos severos, questões de sexualidade, religião ou problemas financeiros.
-2. TRADUÇÃO CLÍNICA PARA PERFORMANCE: Transforme desabafos pessoais em marcadores de desempenho. 
-   - Exemplo Errado: "O competidor chorou porque brigou com a mãe e está com problemas em casa."
-   - Exemplo Correto: "O competidor apresentou sinais de desgaste emocional e dificuldade de regulação frente a estressores externos; foram trabalhadas técnicas de recentramento."
+2. TRADUÇÃO CLÍNICA PARA PERFORMANCE: Transforme desabafos pessoais em marcadores de desempenho.
+   - Exemplo Errado: "O participante chorou porque brigou com a mãe e está com problemas em casa."
+   - Exemplo Correto: "O participante apresentou sinais de desgaste emocional e dificuldade de regulação frente a estressores externos; foram trabalhadas técnicas de recentramento."
 3. FOCO NO OBJETIVO: O relatório deve ser focado no impacto do comportamento na execução das tarefas da ocupação e na preparação para a competição.
 
 Regras de Preenchimento:
 - Responda APENAS com um objeto JSON válido (sem Markdown, sem texto antes ou depois).
 - Use português de forma profissional, técnica e empática.
 - Baseie-se apenas nos dados fornecidos; onde faltar informação, use "Não informado nos registos".
-- cabecalho.treinador_tecnico: se mencionado na ata, preencha. Caso contrário, "Não informado".
+- cabecalho.atendido: nome do participante (competidor ou treinador) extraído da ata.
+- cabecalho.treinador_tecnico: se tipo_participante for "treinador", use o nome do atendido. Caso contrário, extraia da ata ou "Não informado".
 - atividades_realizadas: lista cronológica das técnicas psicológicas e dinâmicas utilizadas.
-- orientacoes_manejo_equipe_tecnica: extraia das atas como o treinador técnico pode ajudar este aluno especificamente (como dar feedback, como motivar).
+- orientacoes_manejo_equipe_tecnica: extraia das atas como a equipe técnica pode apoiar este participante.
 - data_relatorio e local_data_assinatura: use a data lógica do relatório.
 
 Estrutura EXATA do JSON (chaves obrigatórias):
@@ -803,6 +811,7 @@ ${schemaDescrComportamental}`;
           psicologo: trainerObj?.name || 'Não informado',
           tipo: formData.type,
           duracao: formData.duration,
+          tipo_participante: formData.participantType || 'competidor',
           ata_transcricao: transcriptForAi,
         },
       ], null, 2);
@@ -873,8 +882,11 @@ ${schemaDescrComportamental}`;
       ata: formData.ata
     });
 
-    setFormData({ date: new Date().toISOString().split('T')[0], duration: '01:00', trainerName: '', school: '', type: 'Presencial', link: '', ata: '' });
+    setFormData({ date: new Date().toISOString().split('T')[0], duration: '01:00', trainerName: '', school: '', type: 'Presencial', link: '', participantType: 'competidor', ata: '' });
   };
+
+  const selectedTrainerObj = TRAINERS.find((t) => t.name === formData.trainerName);
+  const isComportamentalForm = String(selectedTrainerObj?.occupation || '').trim().toLowerCase().includes('comportamental');
 
   return (
     <div className="max-w-4xl mx-auto animate-fadeIn pb-12">
@@ -920,6 +932,28 @@ ${schemaDescrComportamental}`;
               </select>
             </div>
           </div>
+
+          {isComportamentalForm && (
+            <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 animate-fadeIn">
+              <label className="block text-sm font-bold text-[#1331a1] mb-4 uppercase">Tipo de Participante *</label>
+              <div className="flex flex-wrap gap-6 md:gap-8">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${formData.participantType === 'competidor' ? 'border-[#a2ca02]' : 'border-slate-300 group-hover:border-[#a2ca02]'}`}>
+                    {formData.participantType === 'competidor' && <div className="w-3 h-3 bg-[#a2ca02] rounded-full"></div>}
+                  </div>
+                  <input type="radio" name="participantType" value="competidor" checked={formData.participantType === 'competidor'} onChange={handleChange} className="hidden" />
+                  <span className="text-slate-700 font-bold group-hover:text-[#6a8500] transition-colors">Competidor</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${formData.participantType === 'treinador' ? 'border-[#a2ca02]' : 'border-slate-300 group-hover:border-[#a2ca02]'}`}>
+                    {formData.participantType === 'treinador' && <div className="w-3 h-3 bg-[#a2ca02] rounded-full"></div>}
+                  </div>
+                  <input type="radio" name="participantType" value="treinador" checked={formData.participantType === 'treinador'} onChange={handleChange} className="hidden" />
+                  <span className="text-slate-700 font-bold group-hover:text-[#6a8500] transition-colors">Treinador</span>
+                </label>
+              </div>
+            </div>
+          )}
 
           <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
             <label className="block text-sm font-bold text-[#1331a1] mb-4 uppercase">Modalidade do Encontro *</label>
