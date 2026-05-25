@@ -6,6 +6,15 @@
  * - GEMINI_API_KEY (recomendado, não expõe no bundle)
  * - VITE_GEMINI_API_KEY (também lida no servidor)
  */
+
+// Modelos tentados em ordem quando a quota do anterior se esgota (429)
+const FALLBACK_MODELS = [
+  'gemini-flash-latest',
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+];
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).setHeader('Allow', 'POST').json({ error: 'Method not allowed' });
@@ -34,17 +43,26 @@ export default async function handler(req, res) {
     return;
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${encodeURIComponent(apiKey)}`;
-
   try {
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
+    for (const model of FALLBACK_MODELS) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
 
-    const text = await r.text();
-    res.status(r.status).setHeader('Content-Type', 'application/json; charset=utf-8').send(text);
+      if (r.status === 429) {
+        console.warn(`api/gemini: quota esgotada para ${model}, tentando próximo modelo...`);
+        continue;
+      }
+
+      const text = await r.text();
+      res.status(r.status).setHeader('Content-Type', 'application/json; charset=utf-8').send(text);
+      return;
+    }
+
+    res.status(429).json({ error: 'Quota esgotada em todos os modelos Gemini disponíveis. Tente novamente mais tarde.' });
   } catch (e) {
     console.error('api/gemini:', e);
     res.status(500).json({ error: e.message || 'Erro ao contactar o Gemini' });
