@@ -4,13 +4,13 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell
 } from 'recharts';
-import { 
-  LayoutDashboard, 
-  FilePlus, 
-  History, 
-  Video, 
-  Users, 
-  Clock, 
+import {
+  LayoutDashboard,
+  FilePlus,
+  History,
+  Video,
+  Users,
+  Clock,
   GraduationCap,
   Save,
   CheckCircle2,
@@ -18,7 +18,9 @@ import {
   FileText,
   X,
   Download,
-  Sparkles
+  Sparkles,
+  Wrench,
+  AlertTriangle
 } from 'lucide-react';
 import PizZip from 'pizzip';
 import {
@@ -34,6 +36,20 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 export const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 import { Wand2 } from 'lucide-react';
 // export const supabase = null;
+
+async function logError(context, error, details = {}) {
+  console.error(`[${context}]`, error, details);
+  if (!supabase) return;
+  try {
+    await supabase.from('error_logs').insert([{
+      context,
+      message: error?.message || String(error),
+      details,
+    }]);
+  } catch {
+    // silently fail — never loop
+  }
+}
 
 // --- Fontes Externas e Estilos Globais ---
 const globalStyles = `
@@ -262,7 +278,7 @@ export default function App() {
       .order('date', { ascending: false }); // Traz os mais recentes primeiro
       
     if (error) {
-      console.error("Erro ao buscar dados:", error);
+      logError('buscar_dados', error);
     } else if (data) {
       setRecords(data);
     }
@@ -290,7 +306,7 @@ export default function App() {
       .select(); // Pede ao banco para devolver a linha acabada de criar
 
     if (error) {
-      console.error("Erro ao gravar jornada:", error);
+      logError('gravar_jornada', error);
       alert("Houve um erro ao guardar. Verifica o teu acesso à internet.");
       return;
     }
@@ -356,6 +372,7 @@ export default function App() {
             <NavItem icon={<FilePlus size={20}/>} label="Novo Registro" active={currentView === 'form'} onClick={() => setCurrentView('form')} />
             <NavItem icon={<History size={20}/>} label="Histórico" active={currentView === 'history'} onClick={() => setCurrentView('history')} />
             <NavItem icon={<LayoutDashboard size={20}/>} label="Dashboard" active={currentView === 'dashboard'} onClick={() => setCurrentView('dashboard')} />
+            <NavItem icon={<Wrench size={20}/>} label="Manutenção" active={currentView === 'maintenance'} onClick={() => setCurrentView('maintenance')} />
           </nav>
           
           
@@ -382,6 +399,7 @@ export default function App() {
                 {currentView === 'dashboard' && <DashboardView records={records} />}
                 {currentView === 'form' && <FormView onSubmit={handleAddRecord} />}
                 {currentView === 'history' && <HistoryView records={records} />}
+                {currentView === 'maintenance' && <MaintenanceView />}
               </>
             )}
           </div>
@@ -855,7 +873,7 @@ ${schemaDescrComportamental}`;
       setFormData(prev => ({ ...prev, ata: ataFormatada }));
       
     } catch (error) {
-      console.error("Deu ruim na geração real:", error);
+      logError('gemini_gerar_ata', error, { trainerName: formData.trainerName, school: formData.school });
       alert("Ocorreu um erro ao gerar a ATA real. Verifique o console.");
     } finally {
       setIsGeneratingAta(false);
@@ -1269,7 +1287,7 @@ function HistoryView({ records }) {
 
       setTimeout(() => URL.revokeObjectURL(url), 1500);
     } catch (e) {
-      console.error('Erro ao exportar DOCX:', e);
+      logError('exportar_docx', e);
       alert('Não foi possível baixar a ATA em DOCX. Verifique o Console.');
     }
   };
@@ -1402,7 +1420,7 @@ ${schemaDescr}`;
       a.remove();
       setTimeout(() => URL.revokeObjectURL(urlDl), 1500);
     } catch (e) {
-      console.error('Erro ao emitir relatório:', e);
+      logError('emitir_relatorio', e, { selectedCount: selectedForReport.length });
       alert('Não foi possível emitir o relatório. Verifique o console ou a resposta do Gemini.');
     } finally {
       setIsEmittingReport(false);
@@ -1609,6 +1627,153 @@ function NavItem({ icon, label, active, onClick }) {
       <span className="shrink-0">{icon}</span>
       <span className="text-xs sm:text-sm tracking-wide whitespace-nowrap">{label}</span>
     </button>
+  );
+}
+
+function MaintenanceView() {
+  const [logs, setLogs] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState(null);
+  const [showResolved, setShowResolved] = useState(false);
+
+  const fetchLogs = async () => {
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('error_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (!error && data) setLogs(data);
+    setIsLoading(false);
+  };
+
+  useEffect(() => { fetchLogs(); }, []);
+
+  const markResolved = async (id) => {
+    await supabase.from('error_logs').update({ resolved: true }).eq('id', id);
+    setLogs(prev => prev.map(l => l.id === id ? { ...l, resolved: true } : l));
+  };
+
+  const deleteLog = async (id) => {
+    await supabase.from('error_logs').delete().eq('id', id);
+    setLogs(prev => prev.filter(l => l.id !== id));
+  };
+
+  const CONTEXT_LABELS = {
+    gemini_gerar_ata: 'Gemini — Gerar ATA',
+    buscar_dados: 'Supabase — Buscar dados',
+    gravar_jornada: 'Supabase — Gravar jornada',
+    exportar_docx: 'Exportar DOCX',
+    emitir_relatorio: 'Emitir Relatório',
+  };
+
+  const visible = logs.filter(l => showResolved ? true : !l.resolved);
+  const unresolvedCount = logs.filter(l => !l.resolved).length;
+
+  return (
+    <div className="max-w-5xl mx-auto animate-fadeIn pb-12">
+      <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h2 className="text-3xl md:text-4xl font-brand text-[#1331a1] flex items-center gap-3">
+            <Wrench size={32} /> Manutenção
+          </h2>
+          <p className="text-slate-500 font-medium text-base mt-1">
+            Registro de erros capturados automaticamente pelo sistema.
+          </p>
+        </div>
+        <div className="flex gap-3 items-center">
+          {unresolvedCount > 0 && (
+            <span className="flex items-center gap-1 text-sm font-bold text-red-600 bg-red-50 border border-red-200 px-3 py-1 rounded-full">
+              <AlertTriangle size={14} /> {unresolvedCount} pendente{unresolvedCount > 1 ? 's' : ''}
+            </span>
+          )}
+          <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-slate-600">
+            <input
+              type="checkbox"
+              checked={showResolved}
+              onChange={e => setShowResolved(e.target.checked)}
+              className="accent-[#1331a1] w-4 h-4"
+            />
+            Mostrar resolvidos
+          </label>
+          <button onClick={fetchLogs} className="text-xs font-bold text-white bg-[#1331a1] hover:bg-[#0b1f69] py-2 px-4 rounded-lg transition-colors">
+            Atualizar
+          </button>
+        </div>
+      </header>
+
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="w-10 h-10 border-4 border-[#1331a1] border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-[#1331a1] font-brand text-lg animate-pulse">CARREGANDO LOGS...</p>
+        </div>
+      ) : visible.length === 0 ? (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-16 text-center">
+          <CheckCircle2 size={48} className="text-[#a2ca02] mx-auto mb-4" />
+          <p className="text-slate-500 font-medium text-lg">Nenhum erro registado{!showResolved ? ' pendente' : ''}.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {visible.map(log => (
+            <div
+              key={log.id}
+              className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all ${log.resolved ? 'border-slate-100 opacity-60' : 'border-red-200'}`}
+            >
+              <div className="flex items-start gap-4 p-5">
+                <div className={`mt-0.5 p-2 rounded-xl shrink-0 ${log.resolved ? 'bg-slate-100' : 'bg-red-50'}`}>
+                  <AlertTriangle size={18} className={log.resolved ? 'text-slate-400' : 'text-red-500'} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${log.resolved ? 'bg-slate-100 text-slate-500' : 'bg-red-100 text-red-700'}`}>
+                      {CONTEXT_LABELS[log.context] || log.context}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {new Date(log.created_at).toLocaleString('pt-BR')}
+                    </span>
+                    {log.resolved && (
+                      <span className="text-xs font-bold text-[#6a8500] bg-[#a2ca02]/20 px-2 py-0.5 rounded-full">Resolvido</span>
+                    )}
+                  </div>
+                  <p className="text-sm font-medium text-slate-800 truncate">{log.message}</p>
+                  {log.details && Object.keys(log.details).length > 0 && (
+                    <button
+                      onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
+                      className="text-xs text-[#1331a1] font-bold mt-1 hover:underline"
+                    >
+                      {expandedId === log.id ? 'Ocultar detalhes' : 'Ver detalhes'}
+                    </button>
+                  )}
+                  {expandedId === log.id && (
+                    <pre className="mt-2 text-xs bg-slate-50 border border-slate-200 rounded-lg p-3 overflow-x-auto text-slate-600 whitespace-pre-wrap">
+                      {JSON.stringify(log.details, null, 2)}
+                    </pre>
+                  )}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  {!log.resolved && (
+                    <button
+                      onClick={() => markResolved(log.id)}
+                      title="Marcar como resolvido"
+                      className="text-xs font-bold text-white bg-[#a2ca02] hover:bg-[#8eb300] py-1.5 px-3 rounded-lg transition-colors"
+                    >
+                      Resolver
+                    </button>
+                  )}
+                  <button
+                    onClick={() => deleteLog(log.id)}
+                    title="Apagar registo"
+                    className="text-xs font-bold text-slate-500 hover:text-red-600 bg-slate-100 hover:bg-red-50 py-1.5 px-3 rounded-lg transition-colors"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
