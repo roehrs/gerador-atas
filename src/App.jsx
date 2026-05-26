@@ -1505,27 +1505,25 @@ ${schemaDescr}`;
             </button>
           </div>
         </div>
-      </header>
 
-      {/* Filtros */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-5 mb-4">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="flex items-center gap-2 text-sm font-bold text-slate-500 uppercase shrink-0">
-            <Filter size={15} /> Filtros
+        {/* Filtros inline no cabeçalho */}
+        <div className="flex flex-wrap gap-3 items-center pt-2 border-t border-slate-200">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase shrink-0">
+            <Filter size={13} /> Filtros
           </div>
-          <select value={filterTrainer} onChange={e => setFilterTrainer(e.target.value)} className="flex-1 min-w-[160px] px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 bg-slate-50 focus:border-[#1331a1] focus:ring-0 outline-none cursor-pointer">
+          <select value={filterTrainer} onChange={e => setFilterTrainer(e.target.value)} className="flex-1 min-w-[150px] px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 bg-slate-50 focus:border-[#1331a1] focus:ring-0 outline-none cursor-pointer">
             <option value="">Todos os treinadores</option>
             {allTrainers.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
-          <select value={filterSchool} onChange={e => setFilterSchool(e.target.value)} className="flex-1 min-w-[160px] px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 bg-slate-50 focus:border-[#1331a1] focus:ring-0 outline-none cursor-pointer">
+          <select value={filterSchool} onChange={e => setFilterSchool(e.target.value)} className="flex-1 min-w-[150px] px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 bg-slate-50 focus:border-[#1331a1] focus:ring-0 outline-none cursor-pointer">
             <option value="">Todas as escolas</option>
             {allSchools.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
-          <select value={filterOccupation} onChange={e => setFilterOccupation(e.target.value)} className="flex-1 min-w-[160px] px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 bg-slate-50 focus:border-[#1331a1] focus:ring-0 outline-none cursor-pointer">
+          <select value={filterOccupation} onChange={e => setFilterOccupation(e.target.value)} className="flex-1 min-w-[150px] px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 bg-slate-50 focus:border-[#1331a1] focus:ring-0 outline-none cursor-pointer">
             <option value="">Todas as ocupações</option>
             {allOccupations.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
-          <select value={filterType} onChange={e => setFilterType(e.target.value)} className="flex-1 min-w-[140px] px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 bg-slate-50 focus:border-[#1331a1] focus:ring-0 outline-none cursor-pointer">
+          <select value={filterType} onChange={e => setFilterType(e.target.value)} className="flex-1 min-w-[130px] px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 bg-slate-50 focus:border-[#1331a1] focus:ring-0 outline-none cursor-pointer">
             <option value="">Presencial e Web</option>
             <option value="Presencial">Presencial</option>
             <option value="Web">Online (Web)</option>
@@ -1539,7 +1537,7 @@ ${schemaDescr}`;
             {filteredRecords.length} de {records.length} registos
           </span>
         </div>
-      </div>
+      </header>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden w-full">
         <div className="overflow-x-auto">
