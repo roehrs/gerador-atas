@@ -105,7 +105,7 @@ function extractGeminiTextOrThrow(data) {
 const TRAINERS = [
   { name: 'Amanda', occupation: 'Estética e Bem Estar' },
   { name: 'Cristina', occupation: 'Recepção de Hotel' },
-  { name: 'Diogo', occupation: 'Desenvolvimento de Sistemas' },
+  { name: 'Diogo', occupation: 'Ocupação TI' },
   { name: 'Elis', occupation: 'Cuidados de Saúde e Apoio Social' },
   { name: 'Georgia', occupation: 'Comportamental' },
   { name: 'Maíra', occupation: 'Confeitaria' },
@@ -126,7 +126,7 @@ const SCHOOLS = [
 const getOccupationColor = (occupation) => {
   if (occupation.includes('Cozinha')) return { bg: 'bg-[#F44528]/10', text: 'text-[#F44528]', border: 'border-[#F44528]/20' };
   if (occupation.includes('Estética') || occupation.includes('Cabeleireiro')) return { bg: 'bg-[#F31366]/10', text: 'text-[#F31366]', border: 'border-[#F31366]/20' };
-  if (occupation.includes('Desenvolvimento') || occupation.includes('Informática')) return { bg: 'bg-[#1331a1]/10', text: 'text-[#1331a1]', border: 'border-[#1331a1]/20' };
+  if (occupation.includes('Ocupação TI') || occupation.includes('Desenvolvimento') || occupation.includes('Informática')) return { bg: 'bg-[#1331a1]/10', text: 'text-[#1331a1]', border: 'border-[#1331a1]/20' };
   if (occupation.includes('Florista') || occupation.includes('Comportamental')) return { bg: 'bg-[#a2ca02]/10', text: 'text-[#6a8500]', border: 'border-[#a2ca02]/20' }; 
   if (occupation.includes('Confeitaria')) return { bg: 'bg-[#F8b62F]/10', text: 'text-[#b37c00]', border: 'border-[#F8b62F]/20' }; 
   return { bg: 'bg-slate-100', text: 'text-slate-700', border: 'border-slate-200' };
