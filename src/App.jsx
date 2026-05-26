@@ -1050,8 +1050,27 @@ function HistoryView({ records }) {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [selectedForReport, setSelectedForReport] = useState([]);
   const [isEmittingReport, setIsEmittingReport] = useState(false);
+  const [filterTrainer, setFilterTrainer] = useState('');
+  const [filterSchool, setFilterSchool] = useState('');
+  const [filterOccupation, setFilterOccupation] = useState('');
+  const [filterType, setFilterType] = useState('');
 
   const sortedRecords = [...records].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  const filteredRecords = sortedRecords.filter(r => {
+    if (filterTrainer && r.trainer !== filterTrainer) return false;
+    if (filterSchool && r.school !== filterSchool) return false;
+    if (filterOccupation && r.occupation !== filterOccupation) return false;
+    if (filterType && r.type !== filterType) return false;
+    return true;
+  });
+
+  const hasActiveFilters = filterTrainer || filterSchool || filterOccupation || filterType;
+  const clearFilters = () => { setFilterTrainer(''); setFilterSchool(''); setFilterOccupation(''); setFilterType(''); };
+
+  const allTrainers = useMemo(() => Array.from(new Set(records.map(r => r.trainer))).filter(Boolean).sort(), [records]);
+  const allSchools = useMemo(() => Array.from(new Set(records.map(r => r.school))).filter(Boolean).sort(), [records]);
+  const allOccupations = useMemo(() => Array.from(new Set(records.map(r => r.occupation))).filter(Boolean).sort(), [records]);
 
   // Templates em public/ — nomes só ASCII (Vercel / CDN).
   const ATA_TEMPLATE_URL = encodeURI(
@@ -1062,7 +1081,7 @@ function HistoryView({ records }) {
   );
 
   const allSelectedForReport =
-    sortedRecords.length > 0 && sortedRecords.every((r) => selectedForReport.includes(r.id));
+    filteredRecords.length > 0 && filteredRecords.every((r) => selectedForReport.includes(r.id));
 
   const toggleSelectForReport = (id) => {
     setSelectedForReport((prev) =>
@@ -1072,7 +1091,7 @@ function HistoryView({ records }) {
 
   const toggleSelectAllForReport = () => {
     if (allSelectedForReport) setSelectedForReport([]);
-    else setSelectedForReport(sortedRecords.map((r) => r.id));
+    else setSelectedForReport(filteredRecords.map((r) => r.id));
   };
 
   const escapeXml = (str) => {
@@ -1488,6 +1507,40 @@ ${schemaDescr}`;
         </div>
       </header>
 
+      {/* Filtros */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-5 mb-4">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="flex items-center gap-2 text-sm font-bold text-slate-500 uppercase shrink-0">
+            <Filter size={15} /> Filtros
+          </div>
+          <select value={filterTrainer} onChange={e => setFilterTrainer(e.target.value)} className="flex-1 min-w-[160px] px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 bg-slate-50 focus:border-[#1331a1] focus:ring-0 outline-none cursor-pointer">
+            <option value="">Todos os treinadores</option>
+            {allTrainers.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select value={filterSchool} onChange={e => setFilterSchool(e.target.value)} className="flex-1 min-w-[160px] px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 bg-slate-50 focus:border-[#1331a1] focus:ring-0 outline-none cursor-pointer">
+            <option value="">Todas as escolas</option>
+            {allSchools.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select value={filterOccupation} onChange={e => setFilterOccupation(e.target.value)} className="flex-1 min-w-[160px] px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 bg-slate-50 focus:border-[#1331a1] focus:ring-0 outline-none cursor-pointer">
+            <option value="">Todas as ocupações</option>
+            {allOccupations.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+          <select value={filterType} onChange={e => setFilterType(e.target.value)} className="flex-1 min-w-[140px] px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 bg-slate-50 focus:border-[#1331a1] focus:ring-0 outline-none cursor-pointer">
+            <option value="">Presencial e Web</option>
+            <option value="Presencial">Presencial</option>
+            <option value="Web">Online (Web)</option>
+          </select>
+          {hasActiveFilters && (
+            <button onClick={clearFilters} className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-2 rounded-xl transition-colors shrink-0">
+              <X size={13} /> Limpar
+            </button>
+          )}
+          <span className="text-xs font-bold text-slate-400 ml-auto shrink-0">
+            {filteredRecords.length} de {records.length} registos
+          </span>
+        </div>
+      </div>
+
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden w-full">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -1499,7 +1552,7 @@ ${schemaDescr}`;
                     className="w-4 h-4 rounded border-white/50 accent-[#F31366] cursor-pointer"
                     checked={allSelectedForReport}
                     onChange={toggleSelectAllForReport}
-                    disabled={sortedRecords.length === 0}
+                    disabled={filteredRecords.length === 0}
                     aria-label="Selecionar todos para relatório"
                   />
                 </th>
@@ -1513,10 +1566,12 @@ ${schemaDescr}`;
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {sortedRecords.length === 0 ? (
-                <tr><td colSpan="8" className="py-12 text-center text-slate-500 font-medium text-lg">Nenhuma jornada registada ainda.</td></tr>
+              {filteredRecords.length === 0 ? (
+                <tr><td colSpan="8" className="py-12 text-center text-slate-500 font-medium text-lg">
+                  {hasActiveFilters ? 'Nenhum registo corresponde aos filtros aplicados.' : 'Nenhuma jornada registada ainda.'}
+                </td></tr>
               ) : (
-                sortedRecords.map(record => {
+                filteredRecords.map(record => {
                   const style = getOccupationColor(record.occupation);
                   return (
                     <tr key={record.id} className="hover:bg-slate-50 transition-colors group cursor-default">
