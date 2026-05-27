@@ -1105,6 +1105,20 @@ function HistoryView({ records }) {
       .replace(/'/g, '&apos;');
   };
 
+  const rawTextToDocxXml = (text) => {
+    const lines = String(text || '').split(/\r?\n/);
+    return lines
+      .map((l) =>
+        l
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&apos;')
+      )
+      .join('</w:t></w:r><w:r><w:br/></w:r><w:r><w:t xml:space="preserve">');
+  };
+
   const replaceNextWTextAfterLabel = (xml, labelText, value) => {
     const idx = xml.indexOf(labelText);
     if (idx === -1) return xml;
@@ -1217,6 +1231,22 @@ function HistoryView({ records }) {
       ? participantsLine.replace(/^PARTICIPANTES:\s*/i, '').trim().replace(/^\[(.*)\]$/, '$1').trim()
       : '';
 
+    const isUnstructured = idxObj === -1 && idxDiag === -1 && idxDir === -1 && idxPlan === -1;
+
+    if (isUnstructured) {
+      return {
+        isUnstructured: true,
+        participants: participants.trim(),
+        objective: raw.trim(),
+        diag1: { area: '', desc: '' },
+        diag2: { area: '', desc: '' },
+        dir1: { focus: '', orient: '' },
+        dir2: { focus: '', orient: '' },
+        plan1: { action: '', responsible: '', prazo: '' },
+        plan2: { action: '', responsible: '', prazo: '' },
+      };
+    }
+
     const [d1, d2] = parseDiagnosis();
     const [f1, f2] = parseDirectives();
     const [p1, p2] = parsePlan();
@@ -1261,8 +1291,12 @@ function HistoryView({ records }) {
       xml = replaceNextWTextAfterLabel(xml, 'Data:', safeValue(dataPT));
 
       // Placeholders em colchetes (ordem no XML): 15 ocorrências
+      const objectiveValue = parsed.isUnstructured
+        ? rawTextToDocxXml(parsed.objective)
+        : safeValue(parsed.objective);
+
       const replacements = [
-        safeValue(parsed.objective), // objetivo
+        objectiveValue,
         safeValue(parsed.diag1.area),
         safeValue(parsed.diag1.desc),
         safeValue(parsed.diag2.area),
