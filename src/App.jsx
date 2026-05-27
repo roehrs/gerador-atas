@@ -1133,10 +1133,7 @@ function HistoryView({ records }) {
     return xml.slice(0, start) + escapeXml(value) + xml.slice(end);
   };
 
-  const safeValue = (s) => {
-    const v = String(s ?? '').trim();
-    return v ? v : 'Não informado';
-  };
+  const safeValue = (s) => String(s ?? '').trim();
 
   const parseAtaForTemplate = (ataText) => {
     const raw = String(ataText ?? '');
