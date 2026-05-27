@@ -1105,18 +1105,25 @@ function HistoryView({ records }) {
       .replace(/'/g, '&apos;');
   };
 
-  const rawTextToDocxXml = (text) => {
-    const lines = String(text || '').split(/\r?\n/);
-    return lines
-      .map((l) =>
-        l
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
-          .replace(/'/g, '&apos;')
-      )
-      .join('</w:t></w:r><w:r><w:br/></w:r><w:r><w:t xml:space="preserve">');
+  const buildRawAtaDocx = (ataText) => {
+    const esc = (s) =>
+      String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    const paragraphs = String(ataText || '')
+      .split(/\r?\n/)
+      .map((line) => `<w:p><w:r><w:t xml:space="preserve">${esc(line)}</w:t></w:r></w:p>`)
+      .join('');
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:body>
+<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/></w:rPr><w:t>ATA</w:t></w:r></w:p>
+<w:p/>
+${paragraphs}
+<w:sectPr><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr>
+</w:body>
+</w:document>`;
   };
 
   const replaceNextWTextAfterLabel = (xml, labelText, value) => {
@@ -1231,17 +1238,7 @@ function HistoryView({ records }) {
     const isUnstructured = idxObj === -1 && idxDiag === -1 && idxDir === -1 && idxPlan === -1;
 
     if (isUnstructured) {
-      return {
-        isUnstructured: true,
-        participants: participants.trim(),
-        objective: raw.trim(),
-        diag1: { area: '', desc: '' },
-        diag2: { area: '', desc: '' },
-        dir1: { focus: '', orient: '' },
-        dir2: { focus: '', orient: '' },
-        plan1: { action: '', responsible: '', prazo: '' },
-        plan2: { action: '', responsible: '', prazo: '' },
-      };
+      return { isUnstructured: true };
     }
 
     const [d1, d2] = parseDiagnosis();
@@ -1262,79 +1259,94 @@ function HistoryView({ records }) {
 
   const handleExportATA = async (record) => {
     try {
-      const response = await fetch(ATA_TEMPLATE_URL);
-      if (!response.ok) throw new Error('Falha ao carregar o template DOCX.');
-
-      const arrayBuffer = await response.arrayBuffer();
-      const zip = new PizZip(arrayBuffer);
-
-      const docFile = zip.file('word/document.xml');
-      if (!docFile) throw new Error('document.xml não encontrado dentro do DOCX.');
-
-      let xml = docFile.asText();
-
-      // Campos "fixos" do modelo (caixas vazias após os labels)
-      const dataPT = record?.date
-        ? new Date(record.date + 'T00:00:00').toLocaleDateString('pt-PT')
-        : '';
-
       const parsed = parseAtaForTemplate(record?.ata);
-
-      xml = replaceNextWTextAfterLabel(xml, 'Escola atendida:', safeValue(record?.school));
-      xml = replaceNextWTextAfterLabel(xml, 'Ocupa', safeValue(record?.occupation)); // evita acentos na busca
-      xml = replaceNextWTextAfterLabel(xml, 'Competidor:', safeValue(parsed.participants || record?.trainer));
-      xml = replaceNextWTextAfterLabel(xml, 'Treinador escolar:', safeValue(record?.trainer));
-      xml = replaceNextWTextAfterLabel(xml, 'Treinador Regional:', ''); // se você souber, posso parametrizar
-      xml = replaceNextWTextAfterLabel(xml, 'Data:', safeValue(dataPT));
-
-      // Placeholders em colchetes (ordem no XML): 15 ocorrências
-      const objectiveValue = parsed.isUnstructured
-        ? rawTextToDocxXml(parsed.objective)
-        : safeValue(parsed.objective);
-
-      const replacements = [
-        objectiveValue,
-        safeValue(parsed.diag1.area),
-        safeValue(parsed.diag1.desc),
-        safeValue(parsed.diag2.area),
-        safeValue(parsed.diag2.desc),
-        safeValue(parsed.dir1.focus),
-        safeValue(parsed.dir1.orient),
-        safeValue(parsed.dir2.focus),
-        safeValue(parsed.dir2.orient),
-        safeValue(parsed.plan1.action),
-        safeValue(parsed.plan1.responsible),
-        safeValue(parsed.plan1.prazo),
-        safeValue(parsed.plan2.action),
-        safeValue(parsed.plan2.responsible),
-        safeValue(parsed.plan2.prazo),
-      ];
-
-      let tokenIndex = 0;
-      xml = xml.replace(/\[[^\]]*\]/g, (match) => {
-        const rep = replacements[tokenIndex];
-        tokenIndex += 1;
-        return rep !== undefined ? rep : match;
-      });
-
-      zip.file('word/document.xml', xml);
-
-      const outBlob = zip.generate({
-        type: 'blob',
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      });
-
-      const url = URL.createObjectURL(outBlob);
       const fileDate = record?.date ? String(record.date).slice(0, 10) : 'data';
       const fileName = `ATA_${record?.school || 'escola'}_${fileDate}.docx`.replace(/[\\/:*?"<>|]/g, '_');
 
+      let outBlob;
+
+      if (parsed.isUnstructured) {
+        // ATA livre: gera Word simples com o texto como está
+        const zip = new PizZip();
+        zip.file('[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`);
+        zip.folder('_rels').file('.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`);
+        zip.folder('word').file('document.xml', buildRawAtaDocx(record?.ata));
+        zip.folder('word').folder('_rels').file('document.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>`);
+
+        outBlob = zip.generate({
+          type: 'blob',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
+      } else {
+        // ATA estruturada pela IA: usa o template completo
+        const response = await fetch(ATA_TEMPLATE_URL);
+        if (!response.ok) throw new Error('Falha ao carregar o template DOCX.');
+
+        const zip = new PizZip(await response.arrayBuffer());
+        const docFile = zip.file('word/document.xml');
+        if (!docFile) throw new Error('document.xml não encontrado dentro do DOCX.');
+
+        let xml = docFile.asText();
+
+        const dataPT = record?.date
+          ? new Date(record.date + 'T00:00:00').toLocaleDateString('pt-PT')
+          : '';
+
+        xml = replaceNextWTextAfterLabel(xml, 'Escola atendida:', safeValue(record?.school));
+        xml = replaceNextWTextAfterLabel(xml, 'Ocupa', safeValue(record?.occupation));
+        xml = replaceNextWTextAfterLabel(xml, 'Competidor:', safeValue(parsed.participants || record?.trainer));
+        xml = replaceNextWTextAfterLabel(xml, 'Treinador escolar:', safeValue(record?.trainer));
+        xml = replaceNextWTextAfterLabel(xml, 'Treinador Regional:', '');
+        xml = replaceNextWTextAfterLabel(xml, 'Data:', safeValue(dataPT));
+
+        const replacements = [
+          safeValue(parsed.objective),
+          safeValue(parsed.diag1.area),
+          safeValue(parsed.diag1.desc),
+          safeValue(parsed.diag2.area),
+          safeValue(parsed.diag2.desc),
+          safeValue(parsed.dir1.focus),
+          safeValue(parsed.dir1.orient),
+          safeValue(parsed.dir2.focus),
+          safeValue(parsed.dir2.orient),
+          safeValue(parsed.plan1.action),
+          safeValue(parsed.plan1.responsible),
+          safeValue(parsed.plan1.prazo),
+          safeValue(parsed.plan2.action),
+          safeValue(parsed.plan2.responsible),
+          safeValue(parsed.plan2.prazo),
+        ];
+
+        let tokenIndex = 0;
+        xml = xml.replace(/\[[^\]]*\]/g, (match) => {
+          const rep = replacements[tokenIndex];
+          tokenIndex += 1;
+          return rep !== undefined ? rep : match;
+        });
+
+        zip.file('word/document.xml', xml);
+        outBlob = zip.generate({
+          type: 'blob',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
+      }
+
+      const url = URL.createObjectURL(outBlob);
       const a = document.createElement('a');
       a.href = url;
       a.download = fileName;
       document.body.appendChild(a);
       a.click();
       a.remove();
-
       setTimeout(() => URL.revokeObjectURL(url), 1500);
     } catch (e) {
       logError('exportar_docx', e);
