@@ -1270,6 +1270,8 @@ function HistoryView({ records }) {
         if (!docFile) throw new Error('document.xml não encontrado no template simples.');
         let xml = docFile.asText();
 
+        xml = xml.replace('ATA (Presencial ou WEB)', `ATA ${record?.type === 'Web' ? 'Web' : 'Presencial'}`);
+
         // Rótulos do cabeçalho (template simples tem cada campo em parágrafo separado)
         xml = appendToLabel(xml, 'Escola atendida: ', safeValue(record?.school));
         xml = appendToLabel(xml, 'Ocupa', safeValue(record?.occupation));
@@ -1304,6 +1306,8 @@ function HistoryView({ records }) {
         const docFile = zip.file('word/document.xml');
         if (!docFile) throw new Error('document.xml não encontrado dentro do DOCX.');
         let xml = docFile.asText();
+
+        xml = xml.replace('ATA (Presencial ou WEB)', `ATA ${record?.type === 'Web' ? 'Web' : 'Presencial'}`);
 
         xml = replaceNextWTextAfterLabel(xml, 'Escola atendida:', safeValue(record?.school));
         xml = replaceNextWTextAfterLabel(xml, 'Ocupa', safeValue(record?.occupation));
