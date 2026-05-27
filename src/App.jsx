@@ -1076,6 +1076,9 @@ function HistoryView({ records }) {
   const ATA_TEMPLATE_URL = encodeURI(
     `${import.meta.env.BASE_URL}ata-competicao-2026.docx`.replaceAll('\\', '/')
   );
+  const SIMPLE_TEMPLATE_URL = encodeURI(
+    `${import.meta.env.BASE_URL}modelo-simples-2026.docx`.replaceAll('\\', '/')
+  );
   const REPORT_TEMPLATE_URL = encodeURI(
     `${import.meta.env.BASE_URL}relatorio-competicao-2026.docx`.replaceAll('\\', '/')
   );
@@ -1105,16 +1108,14 @@ function HistoryView({ records }) {
       .replace(/'/g, '&apos;');
   };
 
-  const rawTextToDocxFragment = (text) => {
-    const esc = (s) =>
-      String(s ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-    return String(text || '')
-      .split(/\r?\n/)
-      .map((line) => esc(line))
-      .join('</w:t></w:r><w:r><w:br/></w:r><w:r><w:t xml:space="preserve">');
+  // Usado no template simples: encontra o rótulo e cola o valor no mesmo <w:t>
+  const appendToLabel = (xml, label, value) => {
+    const idx = xml.indexOf(label);
+    if (idx === -1) return xml;
+    const closeIdx = xml.indexOf('</w:t>', idx + label.length);
+    if (closeIdx === -1) return xml;
+    const esc = String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return xml.slice(0, idx + label.length) + esc + xml.slice(closeIdx);
   };
 
   const replaceNextWTextAfterLabel = (xml, labelText, value) => {
@@ -1254,39 +1255,64 @@ function HistoryView({ records }) {
       const fileDate = record?.date ? String(record.date).slice(0, 10) : 'data';
       const fileName = `ATA_${record?.school || 'escola'}_${fileDate}.docx`.replace(/[\\/:*?"<>|]/g, '_');
 
-      let outBlob;
-
-      // Sempre usa o template (mantém cabeçalho, logo e imagens)
-      const response = await fetch(ATA_TEMPLATE_URL);
-      if (!response.ok) throw new Error('Falha ao carregar o template DOCX.');
-
-      const zip = new PizZip(await response.arrayBuffer());
-      const docFile = zip.file('word/document.xml');
-      if (!docFile) throw new Error('document.xml não encontrado dentro do DOCX.');
-
-      let xml = docFile.asText();
-
       const dataPT = record?.date
         ? new Date(record.date + 'T00:00:00').toLocaleDateString('pt-PT')
         : '';
 
-      // Cabeçalho: sempre preenchido
-      xml = replaceNextWTextAfterLabel(xml, 'Escola atendida:', safeValue(record?.school));
-      xml = replaceNextWTextAfterLabel(xml, 'Ocupa', safeValue(record?.occupation));
-      xml = replaceNextWTextAfterLabel(xml, 'Competidor:', safeValue(parsed.participants || record?.trainer));
-      xml = replaceNextWTextAfterLabel(xml, 'Treinador escolar:', safeValue(record?.trainer));
-      xml = replaceNextWTextAfterLabel(xml, 'Treinador Regional:', '');
-      xml = replaceNextWTextAfterLabel(xml, 'Data:', safeValue(dataPT));
+      let outBlob;
 
-      let replacements;
       if (parsed.isUnstructured) {
-        // ATA livre: texto completo no primeiro campo, restante em branco
-        replacements = [
-          rawTextToDocxFragment(record?.ata),
-          '', '', '', '', '', '', '', '', '', '', '', '', '', '',
-        ];
+        // Template simples: cabeçalho + texto sem seções
+        const response = await fetch(SIMPLE_TEMPLATE_URL);
+        if (!response.ok) throw new Error('Falha ao carregar o template simples DOCX.');
+        const zip = new PizZip(await response.arrayBuffer());
+        const docFile = zip.file('word/document.xml');
+        if (!docFile) throw new Error('document.xml não encontrado no template simples.');
+        let xml = docFile.asText();
+
+        // Rótulos do cabeçalho (template simples tem cada campo em parágrafo separado)
+        xml = appendToLabel(xml, 'Escola atendida: ', safeValue(record?.school));
+        xml = appendToLabel(xml, 'Ocupa', safeValue(record?.occupation));
+        xml = appendToLabel(xml, 'Competidor: ', '');
+        xml = appendToLabel(xml, 'Treinador escolar:', ' ' + safeValue(record?.trainer));
+        xml = appendToLabel(xml, 'Treinador Regional:', '');
+        xml = appendToLabel(xml, 'Data: ', safeValue(dataPT));
+
+        // Insere o texto após o parágrafo "ATA :" no corpo do documento
+        const marker = 'w:type="gramEnd"/></w:p>';
+        const markerIdx = xml.indexOf(marker);
+        if (markerIdx !== -1) {
+          const insertPos = markerIdx + marker.length;
+          const escLine = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          const textParas = String(record?.ata || '')
+            .split(/\r?\n/)
+            .map((line) => `<w:p><w:pPr><w:spacing w:before="120" w:after="120" w:line="259" w:lineRule="auto"/></w:pPr><w:r><w:t xml:space="preserve">${escLine(line)}</w:t></w:r></w:p>`)
+            .join('');
+          xml = xml.slice(0, insertPos) + textParas + xml.slice(insertPos);
+        }
+
+        zip.file('word/document.xml', xml);
+        outBlob = zip.generate({
+          type: 'blob',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
       } else {
-        replacements = [
+        // Template estruturado (ATA com IA)
+        const response = await fetch(ATA_TEMPLATE_URL);
+        if (!response.ok) throw new Error('Falha ao carregar o template DOCX.');
+        const zip = new PizZip(await response.arrayBuffer());
+        const docFile = zip.file('word/document.xml');
+        if (!docFile) throw new Error('document.xml não encontrado dentro do DOCX.');
+        let xml = docFile.asText();
+
+        xml = replaceNextWTextAfterLabel(xml, 'Escola atendida:', safeValue(record?.school));
+        xml = replaceNextWTextAfterLabel(xml, 'Ocupa', safeValue(record?.occupation));
+        xml = replaceNextWTextAfterLabel(xml, 'Competidor:', safeValue(parsed.participants || record?.trainer));
+        xml = replaceNextWTextAfterLabel(xml, 'Treinador escolar:', safeValue(record?.trainer));
+        xml = replaceNextWTextAfterLabel(xml, 'Treinador Regional:', '');
+        xml = replaceNextWTextAfterLabel(xml, 'Data:', safeValue(dataPT));
+
+        const replacements = [
           safeValue(parsed.objective),
           safeValue(parsed.diag1.area),
           safeValue(parsed.diag1.desc),
@@ -1303,20 +1329,20 @@ function HistoryView({ records }) {
           safeValue(parsed.plan2.responsible),
           safeValue(parsed.plan2.prazo),
         ];
+
+        let tokenIndex = 0;
+        xml = xml.replace(/\[[^\]]*\]/g, (match) => {
+          const rep = replacements[tokenIndex];
+          tokenIndex += 1;
+          return rep !== undefined ? rep : match;
+        });
+
+        zip.file('word/document.xml', xml);
+        outBlob = zip.generate({
+          type: 'blob',
+          mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
       }
-
-      let tokenIndex = 0;
-      xml = xml.replace(/\[[^\]]*\]/g, (match) => {
-        const rep = replacements[tokenIndex];
-        tokenIndex += 1;
-        return rep !== undefined ? rep : match;
-      });
-
-      zip.file('word/document.xml', xml);
-      outBlob = zip.generate({
-        type: 'blob',
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      });
 
       const url = URL.createObjectURL(outBlob);
       const a = document.createElement('a');
