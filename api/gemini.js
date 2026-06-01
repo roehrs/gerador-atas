@@ -52,8 +52,8 @@ export default async function handler(req, res) {
         body: JSON.stringify(body),
       });
 
-      if (r.status === 429) {
-        console.warn(`api/gemini: quota esgotada para ${model}, tentando próximo modelo...`);
+      if (r.status === 429 || r.status === 503) {
+        console.warn(`api/gemini: modelo ${model} indisponível (${r.status}), tentando próximo...`);
         continue;
       }
 

@@ -24,8 +24,8 @@ export async function geminiGenerateContent(payload) {
         body: JSON.stringify(payload),
       });
 
-      if (response.status === 429) {
-        console.warn(`geminiClient: quota esgotada para ${model}, tentando próximo modelo...`);
+      if (response.status === 429 || response.status === 503) {
+        console.warn(`geminiClient: modelo ${model} indisponível (${response.status}), tentando próximo...`);
         continue;
       }
 
