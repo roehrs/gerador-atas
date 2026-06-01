@@ -1,9 +1,8 @@
 // Modelos tentados em ordem quando a quota do anterior se esgota (429)
 const FALLBACK_MODELS = [
-  'gemini-flash-latest',
   'gemini-2.5-flash',
   'gemini-2.0-flash',
-  'gemini-1.5-flash',
+  'gemini-2.0-flash-lite',
 ];
 
 /**
@@ -24,7 +23,7 @@ export async function geminiGenerateContent(payload) {
         body: JSON.stringify(payload),
       });
 
-      if (response.status === 429 || response.status === 503) {
+      if (response.status === 429 || response.status === 503 || response.status === 404) {
         console.warn(`geminiClient: modelo ${model} indisponível (${response.status}), tentando próximo...`);
         continue;
       }
