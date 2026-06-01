@@ -20,10 +20,14 @@ export default async function handler(req, res) {
     return;
   }
 
-  const apiKey = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
+  const apiKeys = [
+    process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_2,
+  ].filter(Boolean);
+
+  if (apiKeys.length === 0) {
     res.status(500).json({
-      error: 'Chave Gemini não configurada no servidor. Defina GEMINI_API_KEY ou VITE_GEMINI_API_KEY na Vercel e faça redeploy.',
+      error: 'Chave Gemini não configurada no servidor. Defina GEMINI_API_KEY na Vercel e faça redeploy.',
     });
     return;
   }
@@ -43,25 +47,27 @@ export default async function handler(req, res) {
   }
 
   try {
-    for (const model of FALLBACK_MODELS) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
-      const r = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+    for (const [keyIndex, apiKey] of apiKeys.entries()) {
+      for (const model of FALLBACK_MODELS) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+        const r = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
 
-      if (r.status === 429 || r.status === 503 || r.status === 404) {
-        console.warn(`api/gemini: modelo ${model} indisponível (${r.status}), tentando próximo...`);
-        continue;
+        if (r.status === 429 || r.status === 503 || r.status === 404) {
+          console.warn(`api/gemini: chave ${keyIndex + 1}, modelo ${model} indisponível (${r.status}), tentando próximo...`);
+          continue;
+        }
+
+        const text = await r.text();
+        res.status(r.status).setHeader('Content-Type', 'application/json; charset=utf-8').send(text);
+        return;
       }
-
-      const text = await r.text();
-      res.status(r.status).setHeader('Content-Type', 'application/json; charset=utf-8').send(text);
-      return;
     }
 
-    res.status(429).json({ error: 'Quota esgotada em todos os modelos Gemini disponíveis. Tente novamente mais tarde.' });
+    res.status(429).json({ error: 'Quota esgotada em todos os modelos e chaves Gemini disponíveis. Tente novamente mais tarde.' });
   } catch (e) {
     console.error('api/gemini:', e);
     res.status(500).json({ error: e.message || 'Erro ao contactar o Gemini' });
