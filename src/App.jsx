@@ -1098,27 +1098,37 @@ function HistoryView({ records }) {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [selectedForReport, setSelectedForReport] = useState([]);
   const [isEmittingReport, setIsEmittingReport] = useState(false);
-  const [filterTrainer, setFilterTrainer] = useState('');
-  const [filterSchool, setFilterSchool] = useState('');
-  const [filterOccupation, setFilterOccupation] = useState('');
-  const [filterType, setFilterType] = useState('');
+  // Filtros multi-seleção (checkbox): array vazio = sem restrição (todas as opções).
+  const [selTrainers, setSelTrainers] = useState([]);
+  const [selSchools, setSelSchools] = useState([]);
+  const [selOccupations, setSelOccupations] = useState([]);
+  const [selTypes, setSelTypes] = useState([]);
 
   const sortedRecords = [...records].sort((a, b) => new Date(b.date) - new Date(a.date));
 
   const filteredRecords = sortedRecords.filter(r => {
-    if (filterTrainer && r.trainer !== filterTrainer) return false;
-    if (filterSchool && r.school !== filterSchool) return false;
-    if (filterOccupation && r.occupation !== filterOccupation) return false;
-    if (filterType && r.type !== filterType) return false;
+    if (selTrainers.length && !selTrainers.includes(r.trainer)) return false;
+    if (selSchools.length && !selSchools.includes(r.school)) return false;
+    if (selOccupations.length && !selOccupations.includes(r.occupation)) return false;
+    if (selTypes.length && !selTypes.includes(r.type)) return false;
     return true;
   });
 
-  const hasActiveFilters = filterTrainer || filterSchool || filterOccupation || filterType;
-  const clearFilters = () => { setFilterTrainer(''); setFilterSchool(''); setFilterOccupation(''); setFilterType(''); };
+  const hasActiveFilters = selTrainers.length > 0 || selSchools.length > 0 || selOccupations.length > 0 || selTypes.length > 0;
+  const clearFilters = () => { setSelTrainers([]); setSelSchools([]); setSelOccupations([]); setSelTypes([]); };
 
   const allTrainers = useMemo(() => Array.from(new Set(records.map(r => r.trainer))).filter(Boolean).sort(), [records]);
-  const allSchools = useMemo(() => Array.from(new Set(records.map(r => r.school))).filter(Boolean).sort(), [records]);
+  const allSchools = useMemo(() => {
+    const present = new Set(records.map(r => r.school).filter(Boolean));
+    // "Web Geral" sempre selecionável (encontros online sem escola específica).
+    present.add('Web Geral');
+    return Array.from(present).sort();
+  }, [records]);
   const allOccupations = useMemo(() => Array.from(new Set(records.map(r => r.occupation))).filter(Boolean).sort(), [records]);
+  const typeOptions = useMemo(() => [
+    { value: 'Presencial', label: 'Presencial' },
+    { value: 'Web', label: 'Online (Web)' },
+  ], []);
 
   // Templates em public/ — nomes só ASCII (Vercel / CDN).
   const ATA_TEMPLATE_URL = encodeURI(
@@ -1605,36 +1615,24 @@ ${schemaDescr}`;
           </div>
         </div>
 
-        {/* Filtros inline no cabeçalho */}
-        <div className="flex flex-wrap gap-3 items-center pt-2 border-t border-slate-200">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase shrink-0">
-            <Filter size={13} /> Filtros
+        {/* Filtros multi-seleção por checkbox (mesmo padrão do Dashboard) */}
+        <div className="pt-3 border-t border-slate-200">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
+            <MultiSelectFilter label="Treinador" options={allTrainers} selected={selTrainers} onChange={setSelTrainers} allLabel="Todos" />
+            <MultiSelectFilter label="Escola" options={allSchools} selected={selSchools} onChange={setSelSchools} allLabel="Todas" />
+            <MultiSelectFilter label="Ocupação" options={allOccupations} selected={selOccupations} onChange={setSelOccupations} allLabel="Todas" />
+            <MultiSelectFilter label="Tipo de Reunião" options={typeOptions} selected={selTypes} onChange={setSelTypes} allLabel="Presencial e Online" />
           </div>
-          <select value={filterTrainer} onChange={e => setFilterTrainer(e.target.value)} className="flex-1 min-w-[150px] px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 bg-slate-50 focus:border-[#1331a1] focus:ring-0 outline-none cursor-pointer">
-            <option value="">Todos os treinadores</option>
-            {allTrainers.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <select value={filterSchool} onChange={e => setFilterSchool(e.target.value)} className="flex-1 min-w-[150px] px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 bg-slate-50 focus:border-[#1331a1] focus:ring-0 outline-none cursor-pointer">
-            <option value="">Todas as escolas</option>
-            {allSchools.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select value={filterOccupation} onChange={e => setFilterOccupation(e.target.value)} className="flex-1 min-w-[150px] px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 bg-slate-50 focus:border-[#1331a1] focus:ring-0 outline-none cursor-pointer">
-            <option value="">Todas as ocupações</option>
-            {allOccupations.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-          <select value={filterType} onChange={e => setFilterType(e.target.value)} className="flex-1 min-w-[130px] px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-700 bg-slate-50 focus:border-[#1331a1] focus:ring-0 outline-none cursor-pointer">
-            <option value="">Presencial e Web</option>
-            <option value="Presencial">Presencial</option>
-            <option value="Web">Online (Web)</option>
-          </select>
-          {hasActiveFilters && (
-            <button onClick={clearFilters} className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-2 rounded-xl transition-colors shrink-0">
-              <X size={13} /> Limpar
-            </button>
-          )}
-          <span className="text-xs font-bold text-slate-400 ml-auto shrink-0">
-            {filteredRecords.length} de {records.length} registos
-          </span>
+          <div className="flex flex-wrap gap-3 items-center mt-3">
+            {hasActiveFilters && (
+              <button onClick={clearFilters} className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-2 rounded-xl transition-colors shrink-0">
+                <X size={13} /> Limpar filtros
+              </button>
+            )}
+            <span className="text-xs font-bold text-slate-400 ml-auto shrink-0">
+              {filteredRecords.length} de {records.length} registos
+            </span>
+          </div>
         </div>
       </header>
 
