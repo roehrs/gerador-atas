@@ -415,21 +415,26 @@ function DashboardView({ records }) {
   const [filterTrainer, setFilterTrainer] = useState('');
   const [filterOccupation, setFilterOccupation] = useState('');
   const [filterSchool, setFilterSchool] = useState('');
+  const [filterType, setFilterType] = useState('');
 
   const availableTrainers = useMemo(() => {
-    const filtered = records.filter(r => (!filterOccupation || r.occupation === filterOccupation) && (!filterSchool || r.school === filterSchool));
+    const filtered = records.filter(r => (!filterOccupation || r.occupation === filterOccupation) && (!filterSchool || r.school === filterSchool) && (!filterType || r.type === filterType));
     return Array.from(new Set(filtered.map(r => r.trainer))).sort();
-  }, [records, filterOccupation, filterSchool]);
+  }, [records, filterOccupation, filterSchool, filterType]);
 
   const availableOccupations = useMemo(() => {
-    const filtered = records.filter(r => (!filterTrainer || r.trainer === filterTrainer) && (!filterSchool || r.school === filterSchool));
+    const filtered = records.filter(r => (!filterTrainer || r.trainer === filterTrainer) && (!filterSchool || r.school === filterSchool) && (!filterType || r.type === filterType));
     return Array.from(new Set(filtered.map(r => r.occupation))).sort();
-  }, [records, filterTrainer, filterSchool]);
+  }, [records, filterTrainer, filterSchool, filterType]);
 
   const availableSchools = useMemo(() => {
-    const filtered = records.filter(r => (!filterTrainer || r.trainer === filterTrainer) && (!filterOccupation || r.occupation === filterOccupation));
-    return Array.from(new Set(filtered.map(r => r.school))).sort();
-  }, [records, filterTrainer, filterOccupation]);
+    const filtered = records.filter(r => (!filterTrainer || r.trainer === filterTrainer) && (!filterOccupation || r.occupation === filterOccupation) && (!filterType || r.type === filterType));
+    const present = new Set(filtered.map(r => r.school));
+    // Garante que "Web Geral" seja sempre selecionável (encontros online sem escola específica),
+    // exceto quando o filtro de tipo está em Presencial.
+    if (filterType !== 'Presencial') present.add('Web Geral');
+    return Array.from(present).sort();
+  }, [records, filterTrainer, filterOccupation, filterType]);
 
   useEffect(() => { if (filterTrainer && !availableTrainers.includes(filterTrainer)) setFilterTrainer(''); }, [filterTrainer, availableTrainers]);
   useEffect(() => { if (filterOccupation && !availableOccupations.includes(filterOccupation)) setFilterOccupation(''); }, [filterOccupation, availableOccupations]);
@@ -445,6 +450,7 @@ function DashboardView({ records }) {
       if (filterTrainer && r.trainer !== filterTrainer) return false;
       if (filterOccupation && r.occupation !== filterOccupation) return false;
       if (filterSchool && r.school !== filterSchool) return false;
+      if (filterType && r.type !== filterType) return false;
       return true;
     });
 
@@ -478,7 +484,7 @@ function DashboardView({ records }) {
       typeData,
       uniqueSchoolsAttended: new Set(filteredRecords.map(r => r.school)).size
     };
-  }, [records, filterTrainer, filterOccupation, filterSchool]);
+  }, [records, filterTrainer, filterOccupation, filterSchool, filterType]);
 
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
@@ -488,7 +494,7 @@ function DashboardView({ records }) {
       </header>
 
       {/* Barra de Filtros */}
-      <div className="bg-white p-5 rounded-2xl shadow-sm border-t-4 border-[#F31366] grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 items-end mb-6">
+      <div className="bg-white p-5 rounded-2xl shadow-sm border-t-4 border-[#F31366] grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 items-end mb-6">
         <div className="w-full">
           <label className="block text-xs font-bold text-[#1331a1] uppercase tracking-wider mb-2 flex items-center gap-1"><Filter size={14} /> Treinador</label>
           <select value={filterTrainer} onChange={(e) => setFilterTrainer(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#1331a1] bg-slate-50 font-medium">
@@ -510,9 +516,17 @@ function DashboardView({ records }) {
             {availableSchools.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
-        {(filterTrainer || filterOccupation || filterSchool) ? (
+        <div className="w-full">
+          <label className="block text-xs font-bold text-[#1331a1] uppercase tracking-wider mb-2 flex items-center gap-1"><Filter size={14} /> Tipo de Reunião</label>
+          <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#1331a1] bg-slate-50 font-medium">
+            <option value="">Presencial e Online</option>
+            <option value="Presencial">Presencial</option>
+            <option value="Web">Online (Web)</option>
+          </select>
+        </div>
+        {(filterTrainer || filterOccupation || filterSchool || filterType) ? (
           <div className="w-full sm:col-span-2 xl:col-span-1">
-            <button onClick={() => { setFilterTrainer(''); setFilterOccupation(''); setFilterSchool(''); }} className="w-full px-6 py-2.5 text-sm font-bold text-[#F31366] hover:bg-[#F31366]/10 rounded-xl transition-colors whitespace-nowrap h-[46px] border border-[#F31366]/20">
+            <button onClick={() => { setFilterTrainer(''); setFilterOccupation(''); setFilterSchool(''); setFilterType(''); }} className="w-full px-6 py-2.5 text-sm font-bold text-[#F31366] hover:bg-[#F31366]/10 rounded-xl transition-colors whitespace-nowrap h-[46px] border border-[#F31366]/20">
               LIMPAR FILTROS
             </button>
           </div>
