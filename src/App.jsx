@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell
@@ -15,6 +15,7 @@ import {
   Save,
   CheckCircle2,
   Filter,
+  ChevronDown,
   FileText,
   X,
   Download,
@@ -411,34 +412,92 @@ export default function App() {
 
 // --- Componentes de Vista (Views) ---
 
+// Filtro multi-seleção (checkbox) reutilizável: permite escolher várias opções
+// ou "todas menos X" — diferente do dropdown de seleção única.
+function MultiSelectFilter({ label, options, selected, onChange, allLabel = 'Todas' }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  const normalized = useMemo(
+    () => options.map(o => (typeof o === 'object' ? o : { value: o, label: o })),
+    [options]
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const toggle = (val) => {
+    onChange(selected.includes(val) ? selected.filter(v => v !== val) : [...selected, val]);
+  };
+
+  const summary = selected.length === 0
+    ? allLabel
+    : selected.length === 1
+      ? (normalized.find(o => o.value === selected[0])?.label ?? selected[0])
+      : `${selected.length} selecionadas`;
+
+  return (
+    <div className="w-full relative" ref={ref}>
+      <label className="block text-xs font-bold text-[#1331a1] uppercase tracking-wider mb-2 flex items-center gap-1"><Filter size={14} /> {label}</label>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#1331a1] bg-slate-50 font-medium text-left flex items-center justify-between gap-2"
+      >
+        <span className={`truncate ${selected.length === 0 ? 'text-slate-500' : 'text-slate-800'}`}>{summary}</span>
+        <ChevronDown size={16} className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute z-20 mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-64 overflow-auto p-2">
+          <div className="flex items-center justify-between px-2 py-1.5 mb-1 border-b border-slate-100">
+            <button type="button" onClick={() => onChange(normalized.map(o => o.value))} className="text-xs font-bold text-[#1331a1] hover:underline">Selecionar todas</button>
+            <button type="button" onClick={() => onChange([])} className="text-xs font-bold text-[#F31366] hover:underline">Limpar</button>
+          </div>
+          {normalized.length === 0 && <div className="px-2 py-2 text-xs text-slate-400">Sem opções</div>}
+          {normalized.map(o => (
+            <label key={o.value} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={selected.includes(o.value)}
+                onChange={() => toggle(o.value)}
+                className="w-4 h-4 rounded border-slate-300 text-[#1331a1] focus:ring-[#1331a1] accent-[#1331a1]"
+              />
+              <span className="truncate">{o.label}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DashboardView({ records }) {
-  const [filterTrainer, setFilterTrainer] = useState('');
-  const [filterOccupation, setFilterOccupation] = useState('');
-  const [filterSchool, setFilterSchool] = useState('');
-  const [filterType, setFilterType] = useState('');
+  // Filtros multi-seleção: array vazio = sem restrição (todas as opções).
+  const [selTrainers, setSelTrainers] = useState([]);
+  const [selOccupations, setSelOccupations] = useState([]);
+  const [selSchools, setSelSchools] = useState([]);
+  const [selTypes, setSelTypes] = useState([]);
 
-  const availableTrainers = useMemo(() => {
-    const filtered = records.filter(r => (!filterOccupation || r.occupation === filterOccupation) && (!filterSchool || r.school === filterSchool) && (!filterType || r.type === filterType));
-    return Array.from(new Set(filtered.map(r => r.trainer))).sort();
-  }, [records, filterOccupation, filterSchool, filterType]);
-
-  const availableOccupations = useMemo(() => {
-    const filtered = records.filter(r => (!filterTrainer || r.trainer === filterTrainer) && (!filterSchool || r.school === filterSchool) && (!filterType || r.type === filterType));
-    return Array.from(new Set(filtered.map(r => r.occupation))).sort();
-  }, [records, filterTrainer, filterSchool, filterType]);
-
-  const availableSchools = useMemo(() => {
-    const filtered = records.filter(r => (!filterTrainer || r.trainer === filterTrainer) && (!filterOccupation || r.occupation === filterOccupation) && (!filterType || r.type === filterType));
-    const present = new Set(filtered.map(r => r.school));
-    // Garante que "Web Geral" seja sempre selecionável (encontros online sem escola específica),
-    // exceto quando o filtro de tipo está em Presencial.
-    if (filterType !== 'Presencial') present.add('Web Geral');
+  // Opções disponíveis (não cascateiam — assim dá para escolher "todas menos X").
+  const allTrainers = useMemo(() => Array.from(new Set(records.map(r => r.trainer).filter(Boolean))).sort(), [records]);
+  const allOccupations = useMemo(() => Array.from(new Set(records.map(r => r.occupation).filter(Boolean))).sort(), [records]);
+  const allSchools = useMemo(() => {
+    const present = new Set(records.map(r => r.school).filter(Boolean));
+    // "Web Geral" sempre selecionável (encontros online sem escola específica).
+    present.add('Web Geral');
     return Array.from(present).sort();
-  }, [records, filterTrainer, filterOccupation, filterType]);
+  }, [records]);
+  const typeOptions = useMemo(() => [
+    { value: 'Presencial', label: 'Presencial' },
+    { value: 'Web', label: 'Online (Web)' },
+  ], []);
 
-  useEffect(() => { if (filterTrainer && !availableTrainers.includes(filterTrainer)) setFilterTrainer(''); }, [filterTrainer, availableTrainers]);
-  useEffect(() => { if (filterOccupation && !availableOccupations.includes(filterOccupation)) setFilterOccupation(''); }, [filterOccupation, availableOccupations]);
-  useEffect(() => { if (filterSchool && !availableSchools.includes(filterSchool)) setFilterSchool(''); }, [filterSchool, availableSchools]);
+  const hasActiveFilters = selTrainers.length > 0 || selOccupations.length > 0 || selSchools.length > 0 || selTypes.length > 0;
+  const clearFilters = () => { setSelTrainers([]); setSelOccupations([]); setSelSchools([]); setSelTypes([]); };
 
   const stats = useMemo(() => {
     let totalHours = 0;
@@ -447,10 +506,10 @@ function DashboardView({ records }) {
     const typeCount = { Presencial: 0, Web: 0 };
 
     const filteredRecords = records.filter(r => {
-      if (filterTrainer && r.trainer !== filterTrainer) return false;
-      if (filterOccupation && r.occupation !== filterOccupation) return false;
-      if (filterSchool && r.school !== filterSchool) return false;
-      if (filterType && r.type !== filterType) return false;
+      if (selTrainers.length && !selTrainers.includes(r.trainer)) return false;
+      if (selOccupations.length && !selOccupations.includes(r.occupation)) return false;
+      if (selSchools.length && !selSchools.includes(r.school)) return false;
+      if (selTypes.length && !selTypes.includes(r.type)) return false;
       return true;
     });
 
@@ -484,7 +543,7 @@ function DashboardView({ records }) {
       typeData,
       uniqueSchoolsAttended: new Set(filteredRecords.map(r => r.school)).size
     };
-  }, [records, filterTrainer, filterOccupation, filterSchool, filterType]);
+  }, [records, selTrainers, selOccupations, selSchools, selTypes]);
 
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
@@ -493,40 +552,15 @@ function DashboardView({ records }) {
         <p className="text-slate-500 font-medium text-base md:text-lg mt-1">Acompanhamento dos dados.</p>
       </header>
 
-      {/* Barra de Filtros */}
+      {/* Barra de Filtros (multi-seleção por checkbox) */}
       <div className="bg-white p-5 rounded-2xl shadow-sm border-t-4 border-[#F31366] grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 items-end mb-6">
-        <div className="w-full">
-          <label className="block text-xs font-bold text-[#1331a1] uppercase tracking-wider mb-2 flex items-center gap-1"><Filter size={14} /> Treinador</label>
-          <select value={filterTrainer} onChange={(e) => setFilterTrainer(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#1331a1] bg-slate-50 font-medium">
-            <option value="">Todos</option>
-            {availableTrainers.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-        </div>
-        <div className="w-full">
-          <label className="block text-xs font-bold text-[#1331a1] uppercase tracking-wider mb-2 flex items-center gap-1"><Filter size={14} /> Ocupação</label>
-          <select value={filterOccupation} onChange={(e) => setFilterOccupation(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#1331a1] bg-slate-50 font-medium">
-            <option value="">Todas</option>
-            {availableOccupations.map(occ => <option key={occ} value={occ}>{occ}</option>)}
-          </select>
-        </div>
-        <div className="w-full">
-          <label className="block text-xs font-bold text-[#1331a1] uppercase tracking-wider mb-2 flex items-center gap-1"><Filter size={14} /> Escola</label>
-          <select value={filterSchool} onChange={(e) => setFilterSchool(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#1331a1] bg-slate-50 font-medium">
-            <option value="">Todas</option>
-            {availableSchools.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-        <div className="w-full">
-          <label className="block text-xs font-bold text-[#1331a1] uppercase tracking-wider mb-2 flex items-center gap-1"><Filter size={14} /> Tipo de Reunião</label>
-          <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full px-4 py-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#1331a1] bg-slate-50 font-medium">
-            <option value="">Presencial e Online</option>
-            <option value="Presencial">Presencial</option>
-            <option value="Web">Online (Web)</option>
-          </select>
-        </div>
-        {(filterTrainer || filterOccupation || filterSchool || filterType) ? (
+        <MultiSelectFilter label="Treinador" options={allTrainers} selected={selTrainers} onChange={setSelTrainers} allLabel="Todos" />
+        <MultiSelectFilter label="Ocupação" options={allOccupations} selected={selOccupations} onChange={setSelOccupations} allLabel="Todas" />
+        <MultiSelectFilter label="Escola" options={allSchools} selected={selSchools} onChange={setSelSchools} allLabel="Todas" />
+        <MultiSelectFilter label="Tipo de Reunião" options={typeOptions} selected={selTypes} onChange={setSelTypes} allLabel="Presencial e Online" />
+        {hasActiveFilters ? (
           <div className="w-full sm:col-span-2 xl:col-span-1">
-            <button onClick={() => { setFilterTrainer(''); setFilterOccupation(''); setFilterSchool(''); setFilterType(''); }} className="w-full px-6 py-2.5 text-sm font-bold text-[#F31366] hover:bg-[#F31366]/10 rounded-xl transition-colors whitespace-nowrap h-[46px] border border-[#F31366]/20">
+            <button onClick={clearFilters} className="w-full px-6 py-2.5 text-sm font-bold text-[#F31366] hover:bg-[#F31366]/10 rounded-xl transition-colors whitespace-nowrap h-[46px] border border-[#F31366]/20">
               LIMPAR FILTROS
             </button>
           </div>
