@@ -503,6 +503,7 @@ function DashboardView({ records }) {
     let totalHours = 0;
     const hoursBySchool = {};
     const hoursByOccupation = {};
+    const countBySchool = {};
     const typeCount = { Presencial: 0, Web: 0 };
 
     const filteredRecords = records.filter(r => {
@@ -518,13 +519,14 @@ function DashboardView({ records }) {
       totalHours += hrs;
       hoursBySchool[r.school] = (hoursBySchool[r.school] || 0) + hrs;
       hoursByOccupation[r.occupation] = (hoursByOccupation[r.occupation] || 0) + hrs;
+      countBySchool[r.school] = (countBySchool[r.school] || 0) + 1;
       typeCount[r.type] = (typeCount[r.type] || 0) + 1;
     });
 
     const schoolData = Object.keys(hoursBySchool)
       .map(name => ({ name, horas: Number(hoursBySchool[name].toFixed(2)) }))
       .sort((a, b) => b.horas - a.horas)
-      .slice(0, 10); 
+      .slice(0, 10);
 
     const occupationData = Object.keys(hoursByOccupation)
       .map(name => ({ name, value: Number(hoursByOccupation[name].toFixed(2)) }))
@@ -535,12 +537,31 @@ function DashboardView({ records }) {
       { name: 'Web', value: typeCount['Web'] || 0 }
     ];
 
-    return { 
-      totalHours, 
-      totalMeetings: filteredRecords.length, 
-      schoolData, 
-      occupationData, 
+    // Tabela detalhada por escola: mostra TODAS as escolas do escopo (as
+    // selecionadas no filtro, ou a lista mestre completa quando nenhuma
+    // escola está filtrada) para deixar visível quais NÃO têm registros.
+    const scopeSchools = selSchools.length
+      ? selSchools
+      : Array.from(new Set([...SCHOOLS, ...Object.keys(hoursBySchool)]));
+    const schoolTableData = scopeSchools
+      .map(name => ({
+        name,
+        encontros: countBySchool[name] || 0,
+        horas: Number((hoursBySchool[name] || 0).toFixed(2)),
+      }))
+      .sort((a, b) => b.horas - a.horas || a.name.localeCompare(b.name, 'pt-BR'));
+    const schoolsAttended = schoolTableData.filter(s => s.encontros > 0).length;
+    const schoolsMissing = schoolTableData.length - schoolsAttended;
+
+    return {
+      totalHours,
+      totalMeetings: filteredRecords.length,
+      schoolData,
+      occupationData,
       typeData,
+      schoolTableData,
+      schoolsAttended,
+      schoolsMissing,
       uniqueSchoolsAttended: new Set(filteredRecords.map(r => r.school)).size
     };
   }, [records, selTrainers, selOccupations, selSchools, selTypes]);
@@ -613,6 +634,46 @@ function DashboardView({ records }) {
               </PieChart>
             </ResponsiveContainer>
           </div>
+        </div>
+      </div>
+
+      {/* Tabela detalhada por escola (inclui as que não têm registros no filtro) */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mt-8">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-6 pb-4">
+          <h3 className="text-xl font-brand text-[#1331a1]">DETALHAMENTO POR ESCOLA</h3>
+          <div className="flex items-center gap-2 text-xs font-bold">
+            <span className="px-2.5 py-1 rounded-full bg-[#a2ca02]/15 text-[#5f7d00]">{stats.schoolsAttended} atendidas</span>
+            <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-500">{stats.schoolsMissing} sem registros</span>
+          </div>
+        </div>
+        <div className="overflow-x-auto max-h-[28rem] overflow-y-auto">
+          <table className="w-full text-left border-collapse text-sm">
+            <thead className="sticky top-0 z-10">
+              <tr className="bg-[#1331a1] text-white">
+                <th className="bg-[#1331a1] py-3 px-6 font-brand tracking-wide">Escola</th>
+                <th className="bg-[#1331a1] py-3 px-4 font-brand tracking-wide text-center">Encontros</th>
+                <th className="bg-[#1331a1] py-3 px-4 font-brand tracking-wide text-right">Horas</th>
+                <th className="bg-[#1331a1] py-3 px-6 font-brand tracking-wide text-center">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.schoolTableData.map(s => (
+                <tr key={s.name} className={`border-b border-slate-100 ${s.encontros === 0 ? 'bg-slate-50/60' : 'hover:bg-slate-50'}`}>
+                  <td className={`py-3 px-6 font-medium ${s.encontros === 0 ? 'text-slate-400' : 'text-slate-800'}`}>{s.name}</td>
+                  <td className={`py-3 px-4 text-center ${s.encontros === 0 ? 'text-slate-400' : 'text-slate-600'}`}>{s.encontros}</td>
+                  <td className={`py-3 px-4 text-right font-semibold ${s.encontros === 0 ? 'text-slate-400' : 'text-slate-800'}`}>{formatDurationDisplay(s.horas)}</td>
+                  <td className="py-3 px-6 text-center">
+                    {s.encontros === 0
+                      ? <span className="inline-block px-2.5 py-1 rounded-full bg-slate-100 text-slate-400 text-xs font-bold">Sem registros</span>
+                      : <span className="inline-block px-2.5 py-1 rounded-full bg-[#a2ca02]/15 text-[#5f7d00] text-xs font-bold">Atendida</span>}
+                  </td>
+                </tr>
+              ))}
+              {stats.schoolTableData.length === 0 && (
+                <tr><td colSpan={4} className="py-8 text-center text-slate-400 font-medium">Nenhuma escola no filtro atual</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
